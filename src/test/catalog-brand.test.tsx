@@ -14,7 +14,8 @@ describe("Catalog brand treatment", () => {
     const logoLink = screen.getAllByRole("img")[0]!.parentElement;
     const bagCount = screen.getByText("0", { selector: "span" });
     const footer = screen.getByRole("contentinfo");
-    const developerLink = screen.getByRole("link", { name: "POWERED BY: SAMUEL LORAND" });
+    const footerTagline = within(footer).getByText("Feito para uma diva");
+    const developerLink = screen.getByRole("link", { name: "Visitar GitHub de Samuel Lorand" });
     const logo = screen.getByRole("img", { name: "Diva Ativa, início" });
 
     expect(announcement).toHaveClass("bg-announcement", "text-foreground");
@@ -30,9 +31,18 @@ describe("Catalog brand treatment", () => {
     expect(bagCount).toHaveClass("bg-background", "text-foreground");
     expect(bagCount).toHaveClass("absolute", "-right-1", "-top-1");
     expect(footer).toHaveClass("border-t", "border-border");
-    expect(footer).toHaveTextContent("feito para uma diva");
+    expect(footer).toHaveTextContent("Feito para uma diva");
+    expect(footerTagline).toHaveClass("hidden", "sm:inline");
     expect(footer).not.toHaveTextContent("diva ativa.");
-    expect(developerLink).toHaveAttribute("href", "https://www.linkedin.com/in/samuellorand/");
+    expect(developerLink).toHaveTextContent("POWERED BY: SAMUEL LORAND");
+    expect(developerLink).toHaveClass(
+      "inline-flex",
+      "items-center",
+      "gap-1",
+      "hover:underline",
+      "focus-visible:ring-2",
+    );
+    expect(developerLink).toHaveAttribute("href", "https://github.com/SamuelloranD");
   });
 
   it("keeps lateral spacing when opening a product image on mobile", () => {

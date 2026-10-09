@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
+  ArrowUpRight,
   ArrowRight,
   Check,
   Instagram,
@@ -716,14 +717,16 @@ export function Catalog() {
       <footer className="mx-auto mt-8 flex max-w-[1440px] flex-col items-center justify-between gap-4 border-t border-border px-6 pb-8 pt-7 text-xs text-muted-foreground sm:flex-row lg:px-14">
         <span>© 2026 Diva Ativa. Moda em movimento.</span>
         <a
-          href="https://www.linkedin.com/in/samuellorand/"
+          href="https://github.com/SamuelloranD"
           target="_blank"
           rel="noreferrer"
-          className="uppercase transition-colors hover:text-foreground"
+          aria-label="Visitar GitHub de Samuel Lorand"
+          className="inline-flex items-center gap-1 uppercase transition-colors hover:text-foreground hover:underline hover:underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           POWERED BY: SAMUEL LORAND
+          <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
         </a>
-        <span>feito para uma diva</span>
+        <span className="hidden sm:inline">Feito para uma diva.</span>
       </footer>
       <Dialog
         open={selected !== null}
