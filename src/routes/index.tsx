@@ -817,7 +817,7 @@ export function Catalog() {
         </DialogContent>
       </Dialog>
       <Sheet open={bagOpen} onOpenChange={setBagOpen}>
-        <SheetContent className="flex w-2/3 max-w-none flex-col">
+        <SheetContent className="flex w-2/3 max-w-none flex-col overflow-x-hidden p-4 sm:p-6">
           <SheetTitle className="font-display text-3xl font-normal">
             Sua sacola <span className="text-primary">({count})</span>
           </SheetTitle>
@@ -833,19 +833,34 @@ export function Catalog() {
               </div>
             ) : (
               cart.map((line) => (
-                <div key={`${line.id}-${line.size}`} className="flex gap-4 border-b py-5">
+                <div key={`${line.id}-${line.size}`} className="flex min-w-0 gap-4 border-b py-5">
                   <div className="flex gap-4">
                     <img
                       src={catalog.products.find((p) => p.id === line.id)?.images[0]}
                       alt={line.name}
                       width={96}
                       height={128}
-                      className="cart-item-image h-32 w-24 rounded-sm object-cover"
+                      className="cart-item-image h-32 w-24 shrink-0 rounded-sm object-cover"
                     />
                     <div className="min-w-0 flex-1">
-                      <h3 className="cart-item-name text-sm">{line.name}</h3>
+                      <div className="cart-item-header flex min-w-0 items-start justify-between gap-2">
+                        <h3 className="cart-item-name min-w-0 text-sm">{line.name}</h3>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="cart-remove-button shrink-0"
+                          aria-label={`Remover ${line.name}`}
+                          onClick={() =>
+                            setCart((prev) =>
+                              prev.filter((l) => !(l.id === line.id && l.size === line.size)),
+                            )
+                          }
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
                       <p className="mt-1 text-xs text-muted-foreground">Tamanho · {line.size}</p>
-                      <div className="mt-3 flex items-center justify-between">
+                      <div className="cart-item-actions mt-3 flex flex-wrap items-center gap-2">
                         <div className="flex items-center gap-2 border">
                           <Button
                             variant="ghost"
@@ -865,18 +880,6 @@ export function Catalog() {
                             <Plus />
                           </Button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Remover ${line.name}`}
-                          onClick={() =>
-                            setCart((prev) =>
-                              prev.filter((l) => !(l.id === line.id && l.size === line.size)),
-                            )
-                          }
-                        >
-                          <Trash2 />
-                        </Button>
                       </div>
                     </div>
                   </div>
@@ -889,10 +892,14 @@ export function Catalog() {
               <p className="mb-4 text-xs leading-5 text-muted-foreground">
                 A Diva Ativa confirma os valores, tamanhos e a entrega com você pelo WhatsApp.
               </p>
-              <Button asChild className="h-12 w-full">
+              <Button
+                asChild
+                className="h-12 min-w-0 w-full whitespace-normal px-2 text-xs leading-tight sm:text-sm"
+              >
                 <a href={whatsappOrderUrl(cart)} target="_blank" rel="noreferrer">
-                  Concluir pedido no WhatsApp
-                  <ArrowRight />
+                  <span className="cart-checkout-label min-w-0 text-center">
+                    Concluir pedido no WhatsApp
+                  </span>
                 </a>
               </Button>
               <div className="mt-4 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">

@@ -55,6 +55,7 @@ describe("Catalog brand treatment", () => {
     const itemImage = within(bag).getByRole("img", { name: "Macaquito Ellie" });
 
     expect(bag).toHaveClass("w-2/3", "max-w-none");
+    expect(bag).toHaveClass("overflow-x-hidden", "p-4", "sm:p-6");
     expect(itemName).toHaveClass("cart-item-name");
     expect(itemImage).toHaveClass("cart-item-image", "h-32", "w-24");
     expect(itemName.compareDocumentPosition(itemImage)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
@@ -62,6 +63,16 @@ describe("Catalog brand treatment", () => {
     expect(within(bag).queryByText("Cores disponíveis · P")).not.toBeInTheDocument();
     expect(itemName.compareDocumentPosition(within(bag).getByText("Tamanho · P"))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    const removeButton = within(bag).getByRole("button", { name: "Remover Macaquito Ellie" });
+    expect(removeButton).toHaveClass("cart-remove-button");
+    expect(removeButton.parentElement).toHaveClass("cart-item-header");
+    expect(removeButton.parentElement).toContainElement(itemName);
+    expect(bag.querySelector(".cart-item-actions")).toHaveClass("flex-wrap");
+    const checkout = within(bag).getByRole("link", { name: "Concluir pedido no WhatsApp" });
+    expect(checkout).toHaveClass("whitespace-normal", "text-xs", "sm:text-sm");
+    expect(within(checkout).getByText("Concluir pedido no WhatsApp")).toHaveClass(
+      "cart-checkout-label",
     );
   });
 });
