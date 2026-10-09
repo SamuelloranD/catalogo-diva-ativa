@@ -1,0 +1,7 @@
+project_id = "diva-ativa-catalogo"
+
+[db]
+enabled = true
+
+[storage]
+enabled = true

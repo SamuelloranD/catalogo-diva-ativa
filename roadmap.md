@@ -1,0 +1,11 @@
+# Diva Ativa
+- [x] Create white and sage catalog with product imagery and category filters.
+- [x] Add size selection, bag and WhatsApp order summary.
+- [x] Verify catalog and ordering on desktop and mobile.
+- [x] Add Supabase schema, RLS policies and Storage bucket for the persistent catalog.
+- [x] Add dynamic catalog loading with a local fallback when Supabase is not configured.
+- [x] Add `/admin` authentication and product/category management.
+- [x] Add product image upload, validation, removal and ordering.
+- [x] Add the initial catalog seed script for the existing products and images.
+- [ ] Configure the production Supabase project and run migrations/seed.
+- [ ] Publish the frontend and configure production environment variables.
