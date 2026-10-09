@@ -401,6 +401,50 @@ const categories = [
   "Casacos",
   "Casaquinhos",
 ];
+
+type ProductImageButtonProps = {
+  product: Product;
+  loading: "eager" | "lazy";
+  onSelect: () => void;
+};
+
+function ProductImageButton({ product, loading, onSelect }: ProductImageButtonProps) {
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const previewImage = product.images[1] ?? product.images[0];
+  const hasAlternateImage = product.images.length > 1;
+
+  function startPreview() {
+    if (hasAlternateImage) setIsPreviewing(true);
+  }
+
+  function stopPreview() {
+    setIsPreviewing(false);
+  }
+
+  return (
+    <Button
+      variant="image"
+      className="block h-auto w-full p-0"
+      aria-label={`Ver ${product.name}`}
+      onClick={onSelect}
+      onMouseEnter={startPreview}
+      onMouseLeave={stopPreview}
+      onTouchStart={startPreview}
+      onTouchEnd={stopPreview}
+      onTouchCancel={stopPreview}
+    >
+      <img
+        src={isPreviewing ? previewImage : product.images[0]}
+        alt={product.name}
+        width={768}
+        height={1024}
+        loading={loading}
+        className="product-photo"
+      />
+    </Button>
+  );
+}
+
 export function Catalog() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [category, setCategory] = useState("Todas as peças");
@@ -466,11 +510,12 @@ export function Catalog() {
       <SiteNavbar
         isAdmin={isAdmin}
         actions={
-          <div className="flex items-center gap-2 text-foreground sm:gap-4">
+          <div className="contents md:flex md:items-center md:gap-4">
             <Button
               variant="navbar"
-              size="icon"
+              size="navbarIcon"
               title="Buscar peças"
+              className="[&_svg]:size-5"
               aria-label="Buscar peças"
               onClick={() => setSearchOpen(!searchOpen)}
             >
@@ -478,13 +523,14 @@ export function Catalog() {
             </Button>
             <Button
               variant="navbar"
-              className="relative gap-2"
+              size="navbarIcon"
+              className="[&_svg]:size-5"
               aria-label={`Abrir sacola, ${count} itens`}
               onClick={() => setBagOpen(true)}
             >
               <ShoppingBag />
               <span className="hidden sm:inline">Sacola</span>
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1 text-[11px] text-foreground">
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1 text-[11px] text-foreground sm:static sm:ml-1">
                 {count}
               </span>
             </Button>
@@ -592,21 +638,11 @@ export function Catalog() {
           {visible.map((p, i) => (
             <article key={p.id} className="min-w-0">
               <div className="product-image relative overflow-hidden rounded-sm bg-muted">
-                <Button
-                  variant="image"
-                  className="block h-auto w-full p-0"
-                  aria-label={`Ver ${p.name}`}
-                  onClick={() => select(p)}
-                >
-                  <img
-                    src={p.images[0]}
-                    alt={p.name}
-                    width={768}
-                    height={1024}
-                    loading={i === 0 ? "eager" : "lazy"}
-                    className="product-photo"
-                  />
-                </Button>
+                <ProductImageButton
+                  product={p}
+                  loading={i === 0 ? "eager" : "lazy"}
+                  onSelect={() => select(p)}
+                />
                 {p.tag && (
                   <span className="absolute left-3 top-3 bg-background/95 px-2.5 py-1.5 text-[8px] font-medium sm:text-[9px]">
                     {p.tag}
@@ -695,7 +731,7 @@ export function Catalog() {
           if (!open) setSelected(null);
         }}
       >
-        <DialogContent className="max-h-[90dvh] max-w-2xl overflow-y-auto p-5 sm:p-6">
+        <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto p-5 sm:p-6">
           {selected && (
             <div className="grid gap-6 sm:grid-cols-2">
               <div className="space-y-3">
@@ -781,7 +817,7 @@ export function Catalog() {
         </DialogContent>
       </Dialog>
       <Sheet open={bagOpen} onOpenChange={setBagOpen}>
-        <SheetContent className="flex w-full flex-col sm:max-w-md">
+        <SheetContent className="flex w-2/3 max-w-none flex-col">
           <SheetTitle className="font-display text-3xl font-normal">
             Sua sacola <span className="text-primary">({count})</span>
           </SheetTitle>
@@ -790,7 +826,7 @@ export function Catalog() {
             {cart.length === 0 ? (
               <div className="py-16 text-center">
                 <ShoppingBag className="mx-auto mb-4 text-primary" size={40} />
-                <p className="font-display text-2xl">Sua sacola está esperando você.</p>
+                <p className="font-display text-2xl">Sua sacola está esperando você!</p>
                 <Button variant="outline" className="mt-6" onClick={() => setBagOpen(false)}>
                   Explorar catálogo
                 </Button>
@@ -798,50 +834,50 @@ export function Catalog() {
             ) : (
               cart.map((line) => (
                 <div key={`${line.id}-${line.size}`} className="flex gap-4 border-b py-5">
-                  <img
-                    src={catalog.products.find((p) => p.id === line.id)?.images[0]}
-                    alt={line.name}
-                    width={72}
-                    height={96}
-                    className="h-24 w-18 rounded-sm object-cover"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-sm">{line.name}</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {line.color} · {line.size}
-                    </p>
-                    <div className="mt-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2 border">
+                  <div className="flex gap-4">
+                    <img
+                      src={catalog.products.find((p) => p.id === line.id)?.images[0]}
+                      alt={line.name}
+                      width={96}
+                      height={128}
+                      className="cart-item-image h-32 w-24 rounded-sm object-cover"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="cart-item-name text-sm">{line.name}</h3>
+                      <p className="mt-1 text-xs text-muted-foreground">Tamanho · {line.size}</p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2 border">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Diminuir ${line.name}`}
+                            onClick={() => changeQuantity(line, -1)}
+                          >
+                            <Minus />
+                          </Button>
+                          <span className="w-4 text-center text-xs">{line.quantity}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Aumentar ${line.name}`}
+                            onClick={() => changeQuantity(line, 1)}
+                          >
+                            <Plus />
+                          </Button>
+                        </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          aria-label={`Diminuir ${line.name}`}
-                          onClick={() => changeQuantity(line, -1)}
+                          aria-label={`Remover ${line.name}`}
+                          onClick={() =>
+                            setCart((prev) =>
+                              prev.filter((l) => !(l.id === line.id && l.size === line.size)),
+                            )
+                          }
                         >
-                          <Minus />
-                        </Button>
-                        <span className="w-4 text-center text-xs">{line.quantity}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Aumentar ${line.name}`}
-                          onClick={() => changeQuantity(line, 1)}
-                        >
-                          <Plus />
+                          <Trash2 />
                         </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Remover ${line.name}`}
-                        onClick={() =>
-                          setCart((prev) =>
-                            prev.filter((l) => !(l.id === line.id && l.size === line.size)),
-                          )
-                        }
-                      >
-                        <Trash2 />
-                      </Button>
                     </div>
                   </div>
                 </div>
@@ -855,7 +891,6 @@ export function Catalog() {
               </p>
               <Button asChild className="h-12 w-full">
                 <a href={whatsappOrderUrl(cart)} target="_blank" rel="noreferrer">
-                  <MessageCircle />
                   Concluir pedido no WhatsApp
                   <ArrowRight />
                 </a>

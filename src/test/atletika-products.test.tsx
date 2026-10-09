@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Catalog } from "@/routes/index";
@@ -19,6 +19,27 @@ describe("Atletika catalog products", () => {
     expect(
       screen.getAllByRole("button", { name: /Ver imagem \d de Macaquito Ellie/ }),
     ).toHaveLength(3);
+  });
+
+  it("switches to the second product image on hover and touch press", () => {
+    render(<Catalog />);
+
+    const imageButton = screen.getByRole("button", { name: "Ver Macaquito Ellie" });
+    const image = within(imageButton).getByRole("img", { name: "Macaquito Ellie" });
+
+    expect(image).toHaveAttribute("src", expect.stringContaining("/1.jpg"));
+
+    fireEvent.mouseEnter(imageButton);
+    expect(image).toHaveAttribute("src", expect.stringContaining("/2.jpg"));
+
+    fireEvent.mouseLeave(imageButton);
+    expect(image).toHaveAttribute("src", expect.stringContaining("/1.jpg"));
+
+    fireEvent.touchStart(imageButton);
+    expect(image).toHaveAttribute("src", expect.stringContaining("/2.jpg"));
+
+    fireEvent.touchEnd(imageButton);
+    expect(image).toHaveAttribute("src", expect.stringContaining("/1.jpg"));
   });
 
   it("aligns product names with the image and removes favorites", () => {

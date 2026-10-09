@@ -127,10 +127,6 @@ a.brand {
   aspect-ratio: 3/4;
   width: 100%;
   object-fit: cover;
-  transition: transform 0.5s ease;
-}
-.product-image:hover .product-photo {
-  transform: scale(1.025);
 }
 .catalog-tab {
   border-radius: 0;

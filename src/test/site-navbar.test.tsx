@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { SiteNavbar } from "@/components/site-navbar";
+import { buttonVariants } from "@/components/ui/button";
 
 describe("Site navbar admin access", () => {
   it("does not show the admin panel button for regular visitors", () => {
@@ -17,5 +18,33 @@ describe("Site navbar admin access", () => {
       "href",
       "/admin",
     );
+  });
+
+  it("centers the mobile logo and anchors the action rail to both edges", () => {
+    render(
+      <SiteNavbar
+        actions={
+          <div className="contents">
+            <button aria-label="Buscar peças" />
+            <button aria-label="Abrir sacola, 0 itens" />
+          </div>
+        }
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Diva Ativa, início" })).toHaveClass(
+      "site-navbar-logo",
+      "left-1/2",
+    );
+    expect(document.querySelector(".site-navbar-actions")).toHaveClass(
+      "absolute",
+      "inset-x-10",
+      "top-1/2",
+      "justify-between",
+    );
+  });
+
+  it("provides the updated shared size for mobile navbar controls", () => {
+    expect(buttonVariants({ variant: "navbar", size: "navbarIcon" })).toContain("h-12 w-12");
   });
 });
