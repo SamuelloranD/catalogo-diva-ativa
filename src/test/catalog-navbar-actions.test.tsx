@@ -32,4 +32,10 @@ describe("Catalog navbar actions", () => {
     expect(screen.queryAllByRole("button", { name: "Filtros" })).toHaveLength(0);
     expect(screen.getByRole("button", { name: /Ordenar por: Destaques/i })).toBeInTheDocument();
   });
+
+  it("does not show unrelated copy beside the sorting control", () => {
+    render(<Catalog />);
+
+    expect(screen.queryByText("Cores disponíveis e Valor sob consulta")).not.toBeInTheDocument();
+  });
 });
