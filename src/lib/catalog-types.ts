@@ -27,6 +27,7 @@ export type CatalogProduct = {
   imageRecords?: CatalogImage[];
   tag: string;
   description: string;
+  price?: number;
   active?: boolean;
   sortOrder?: number;
 };
@@ -38,6 +39,7 @@ export type ProductInput = {
   description: string;
   colorLabel: string;
   tag: string;
+  price?: number;
   active?: boolean;
   sortOrder?: number;
 };

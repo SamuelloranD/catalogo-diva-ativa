@@ -113,6 +113,10 @@ describe("Admin product controls", () => {
     fireEvent.change(screen.getByLabelText("Nome da peça"), {
       target: { value: "Conjunto Aurora" },
     });
+    const priceInput = screen.getByLabelText("Valor (BRL)");
+    for (const key of ["1", "2", "9", "9", "9"]) {
+      fireEvent.keyDown(priceInput, { key });
+    }
     expect(screen.getByRole("button", { name: "Selecione a categoria" })).toHaveClass(
       "catalog-dropdown-trigger-compact",
       "sm:w-64",
@@ -128,12 +132,32 @@ describe("Admin product controls", () => {
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "Conjunto Aurora", categoryId: category.id }),
+        expect.objectContaining({
+          name: "Conjunto Aurora",
+          categoryId: category.id,
+          price: 129.99,
+        }),
         expect.any(Array),
         expect.any(Array),
         expect.any(Array),
       ),
     );
+  });
+
+  it("starts the BRL input at zero and shifts digits from right to left", () => {
+    render(<ProductForm categories={[category]} onSave={vi.fn()} onCancel={vi.fn()} />);
+
+    const priceInput = screen.getByLabelText("Valor (BRL)");
+    expect(priceInput).toHaveValue("0,00");
+    expect(screen.getByText("R$", { selector: "span" })).toBeInTheDocument();
+
+    fireEvent.keyDown(priceInput, { key: "1" });
+    fireEvent.keyDown(priceInput, { key: "2" });
+    fireEvent.keyDown(priceInput, { key: "9" });
+    expect(priceInput).toHaveValue("1,29");
+
+    fireEvent.keyDown(priceInput, { key: "Backspace" });
+    expect(priceInput).toHaveValue("0,12");
   });
 
   it("allows adding a category from the product form", async () => {

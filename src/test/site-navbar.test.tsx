@@ -23,12 +23,8 @@ describe("Site navbar admin access", () => {
   it("centers the mobile logo and anchors the action rail to both edges", () => {
     render(
       <SiteNavbar
-        actions={
-          <div className="contents">
-            <button aria-label="Buscar peças" />
-            <button aria-label="Abrir sacola, 0 itens" />
-          </div>
-        }
+        leftAction={<button aria-label="Buscar peças" />}
+        rightAction={<button aria-label="Abrir sacola, 0 itens" />}
       />,
     );
 
@@ -42,9 +38,45 @@ describe("Site navbar admin access", () => {
       "top-1/2",
       "justify-between",
     );
+    expect(document.querySelector(".site-navbar-left-action")).toHaveClass("shrink-0");
+    expect(document.querySelector(".site-navbar-right-action")).toHaveClass("relative", "shrink-0");
   });
 
   it("provides the updated shared size for mobile navbar controls", () => {
     expect(buttonVariants({ variant: "navbar", size: "navbarIcon" })).toContain("h-12 w-12");
+  });
+
+  it("adds admin without changing the fixed right action position", () => {
+    render(
+      <SiteNavbar
+        isAdmin
+        leftAction={<button aria-label="Buscar peças" />}
+        rightAction={<button aria-label="Abrir sacola, 0 itens" />}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Abrir painel admin" })).toHaveClass(
+      "site-navbar-admin-action",
+      "absolute",
+      "right-full",
+    );
+    expect(document.querySelector(".site-navbar-right-action")).toHaveClass("relative");
+    expect(screen.getByRole("button", { name: "Abrir sacola, 0 itens" })).toBeInTheDocument();
+  });
+
+  it("keeps the desktop admin action in flow with spacing from search", () => {
+    render(
+      <SiteNavbar
+        isAdmin
+        leftAction={<button aria-label="Buscar peças" />}
+        rightAction={<button aria-label="Abrir sacola, 0 itens" />}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Abrir painel admin" })).toHaveClass(
+      "md:static",
+      "md:mr-0",
+    );
+    expect(document.querySelector(".site-navbar-right-action")).toHaveClass("md:gap-4");
   });
 });

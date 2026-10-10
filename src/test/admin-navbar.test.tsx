@@ -13,7 +13,19 @@ describe("Admin site navbar", () => {
     render(<Admin />);
 
     expect(screen.getByRole("banner")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /voltar/i })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Voltar ao catálogo" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Voltar ao catálogo" })).toHaveClass(
+      "h-14",
+      "w-14",
+      "[&_svg]:size-6",
+    );
+    expect(screen.getByRole("link", { name: "Voltar ao catálogo" })).not.toHaveTextContent(
+      "Voltar ao catálogo",
+    );
+    expect(document.querySelector(".site-navbar-leading-action")).toHaveClass(
+      "absolute",
+      "left-10",
+    );
     expect(screen.getByText("Seu movimento. Seu estilo.")).toBeInTheDocument();
   });
 });

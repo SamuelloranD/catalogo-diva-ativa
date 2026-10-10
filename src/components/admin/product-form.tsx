@@ -8,6 +8,11 @@ import {
 } from "@/components/admin/product-image-uploader";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  appendCatalogPriceDigit,
+  formatCatalogPriceInput,
+  removeCatalogPriceDigit,
+} from "@/lib/catalog";
 import type {
   CatalogCategory,
   CatalogImage,
@@ -41,6 +46,9 @@ export function ProductForm({
   const [description, setDescription] = useState(product?.description ?? "");
   const [colorLabel, setColorLabel] = useState(product?.color ?? "Cores disponíveis");
   const [tag, setTag] = useState(product?.tag ?? "");
+  const [priceCents, setPriceCents] = useState(
+    product?.price === undefined ? 0 : Math.round(product.price * 100),
+  );
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [categoryError, setCategoryError] = useState("");
@@ -94,7 +102,16 @@ export function ProductForm({
         .map((item) => item.file);
 
       await onSave(
-        { name, categoryId, brand, description, colorLabel, tag, active: true },
+        {
+          name,
+          categoryId,
+          brand,
+          description,
+          colorLabel,
+          tag,
+          price: priceCents > 0 ? priceCents / 100 : undefined,
+          active: true,
+        },
         files,
         removedImages,
         imageItems,
@@ -196,6 +213,30 @@ export function ProductForm({
           />
         </label>
       </div>
+      <label className="grid gap-2 text-sm font-medium">
+        Valor (BRL)
+        <div className="relative">
+          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+            R$
+          </span>
+          <Input
+            aria-label="Valor (BRL)"
+            className="pl-10"
+            inputMode="numeric"
+            readOnly
+            value={formatCatalogPriceInput(priceCents)}
+            onKeyDown={(event) => {
+              if (/^\d$/.test(event.key)) {
+                event.preventDefault();
+                setPriceCents((current) => appendCatalogPriceDigit(current, Number(event.key)));
+              } else if (event.key === "Backspace" || event.key === "Delete") {
+                event.preventDefault();
+                setPriceCents(removeCatalogPriceDigit);
+              }
+            }}
+          />
+        </div>
+      </label>
       <label className="grid gap-2 text-sm font-medium">
         Texto de cor
         <Input value={colorLabel} onChange={(event) => setColorLabel(event.target.value)} />

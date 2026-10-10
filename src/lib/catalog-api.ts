@@ -57,7 +57,7 @@ export async function listProducts({ active = true }: { active?: boolean } = {})
   ] = await Promise.all([
     client
       .from("products")
-      .select("id,name,category_id,brand,description,color_label,tag,active,sort_order")
+      .select("id,name,category_id,brand,description,color_label,tag,price,active,sort_order")
       .eq("active", active)
       .order("sort_order", { ascending: true }),
     client.from("categories").select("id,name").eq("active", true),
@@ -100,6 +100,7 @@ export async function listProducts({ active = true }: { active?: boolean } = {})
     imageRecords: imagesByProduct.get(product.id) ?? [],
     tag: product.tag,
     description: product.description,
+    price: product.price == null ? undefined : Number(product.price),
     active: product.active,
     sortOrder: product.sort_order,
   }));
@@ -155,6 +156,7 @@ export async function createProduct(input: ProductInput): Promise<string> {
       description: input.description.trim(),
       color_label: input.colorLabel.trim() || "Cores disponíveis",
       tag: input.tag.trim(),
+      price: input.price ?? null,
       active: input.active ?? true,
       sort_order: input.sortOrder ?? 0,
     })
@@ -175,6 +177,7 @@ export async function updateProduct(id: string, input: ProductInput) {
       description: input.description.trim(),
       color_label: input.colorLabel.trim() || "Cores disponíveis",
       tag: input.tag.trim(),
+      price: input.price ?? null,
       active: input.active ?? true,
       sort_order: input.sortOrder ?? 0,
     })

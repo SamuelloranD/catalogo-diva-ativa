@@ -31,6 +31,7 @@ const buttonVariants = cva(
         lg: "h-10 rounded-md px-8",
         icon: "h-9 w-9",
         navbarIcon: "h-12 w-12",
+        navbarIconLarge: "h-14 w-14 [&_svg]:size-6",
       },
     },
     defaultVariants: {

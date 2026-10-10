@@ -53,6 +53,27 @@ describe("Catalog brand treatment", () => {
     expect(screen.getByRole("dialog")).toHaveClass("w-[calc(100%-2rem)]", "max-w-2xl");
   });
 
+  it("aligns product details to the top of the image modal", () => {
+    render(<Catalog />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver Macaquito Ellie" }));
+
+    expect(document.querySelector(".product-dialog-details")).toHaveClass("justify-start");
+    expect(document.querySelector(".product-dialog-details")).not.toHaveClass("justify-center");
+  });
+
+  it("keeps the desktop product modal and image area at fixed heights", () => {
+    render(<Catalog />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ver Macaquito Ellie" }));
+
+    const dialog = screen.getByRole("dialog");
+    const productImage = within(dialog).getByRole("img", { name: "Macaquito Ellie" });
+
+    expect(dialog).toHaveClass("sm:h-[720px]", "sm:max-h-[calc(100dvh-2rem)]");
+    expect(productImage).toHaveClass("sm:h-[500px]", "sm:object-contain");
+  });
+
   it("opens the bag at two-thirds width and places the item name above its larger image", () => {
     render(<Catalog />);
 

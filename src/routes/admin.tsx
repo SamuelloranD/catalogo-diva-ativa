@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { CircleArrowLeft } from "lucide-react";
 
 import { AdminLogin } from "@/components/admin/admin-login";
 import { AdminShell } from "@/components/admin/admin-shell";
@@ -158,9 +159,11 @@ export function Admin() {
   return (
     <>
       <SiteNavbar
-        actions={
-          <Button asChild variant="navbar" className="gap-2">
-            <a href="/">Voltar ao catálogo</a>
+        leadingAction={
+          <Button asChild variant="navbar" size="navbarIconLarge" title="Voltar ao catálogo">
+            <a href="/" aria-label="Voltar ao catálogo">
+              <CircleArrowLeft />
+            </a>
           </Button>
         }
       />

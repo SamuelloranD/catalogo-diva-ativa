@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import {
   addOrderLine,
+  formatCatalogPrice,
   whatsappOrderUrl,
   STORE_INSTAGRAM,
   STORE_WHATSAPP,
@@ -510,32 +511,30 @@ export function Catalog() {
     <>
       <SiteNavbar
         isAdmin={isAdmin}
-        actions={
-          <div className="contents md:flex md:items-center md:gap-4">
-            <Button
-              variant="navbar"
-              size="navbarIcon"
-              title="Buscar peças"
-              className="[&_svg]:size-5"
-              aria-label="Buscar peças"
-              onClick={() => setSearchOpen(!searchOpen)}
-            >
-              <Search />
-            </Button>
-            <Button
-              variant="navbar"
-              size="navbarIcon"
-              className="[&_svg]:size-5"
-              aria-label={`Abrir sacola, ${count} itens`}
-              onClick={() => setBagOpen(true)}
-            >
-              <ShoppingBag />
-              <span className="hidden sm:inline">Sacola</span>
-              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1 text-[11px] text-foreground sm:static sm:ml-1">
-                {count}
-              </span>
-            </Button>
-          </div>
+        leftAction={
+          <Button
+            variant="navbar"
+            size="navbarIcon"
+            title="Buscar peças"
+            aria-label="Buscar peças"
+            onClick={() => setSearchOpen(!searchOpen)}
+          >
+            <Search />
+          </Button>
+        }
+        rightAction={
+          <Button
+            variant="navbar"
+            size="navbarIcon"
+            className="relative [&_svg]:size-5"
+            aria-label={`Abrir sacola, ${count} itens`}
+            onClick={() => setBagOpen(true)}
+          >
+            <ShoppingBag />
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1 text-[11px] text-foreground">
+              {count}
+            </span>
+          </Button>
         }
       />
       <main
@@ -636,41 +635,50 @@ export function Catalog() {
           </div>
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-6">
-          {visible.map((p, i) => (
-            <article key={p.id} className="min-w-0">
-              <div className="product-image relative overflow-hidden rounded-sm bg-muted">
-                <ProductImageButton
-                  product={p}
-                  loading={i === 0 ? "eager" : "lazy"}
-                  onSelect={() => select(p)}
-                />
-                {p.tag && (
-                  <span className="absolute left-3 top-3 bg-background/95 px-2.5 py-1.5 text-[8px] font-medium sm:text-[9px]">
-                    {p.tag}
-                  </span>
-                )}
-                <Button
-                  variant="photoIcon"
-                  size="icon"
-                  className="absolute bottom-3 right-3"
-                  title="Adicionar à sacola"
-                  aria-label={`Adicionar ${p.name} à sacola`}
-                  onClick={() => select(p)}
-                >
-                  <Plus />
-                </Button>
-              </div>
-              <div className="pt-4">
-                <p className="mb-1.5 text-[10px] text-muted-foreground">{p.category}</p>
-                <Button variant="productName" className="w-full px-0" onClick={() => select(p)}>
-                  {p.name}
-                </Button>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Consultar valores e cores disponíveis
-                </p>
-              </div>
-            </article>
-          ))}
+          {visible.map((p, i) => {
+            const formattedPrice = formatCatalogPrice(p.price);
+
+            return (
+              <article key={p.id} className="min-w-0">
+                <div className="product-image relative overflow-hidden rounded-sm bg-muted">
+                  <ProductImageButton
+                    product={p}
+                    loading={i === 0 ? "eager" : "lazy"}
+                    onSelect={() => select(p)}
+                  />
+                  {p.tag && (
+                    <span className="absolute left-3 top-3 bg-background/95 px-2.5 py-1.5 text-[8px] font-medium sm:text-[9px]">
+                      {p.tag}
+                    </span>
+                  )}
+                  <Button
+                    variant="photoIcon"
+                    size="icon"
+                    className="absolute bottom-3 right-3"
+                    title="Adicionar à sacola"
+                    aria-label={`Adicionar ${p.name} à sacola`}
+                    onClick={() => select(p)}
+                  >
+                    <Plus />
+                  </Button>
+                </div>
+                <div className="pt-4">
+                  <p className="mb-1.5 text-[10px] text-muted-foreground">{p.category}</p>
+                  <Button variant="productName" className="w-full px-0" onClick={() => select(p)}>
+                    {p.name}
+                  </Button>
+                  {formattedPrice && (
+                    <p className="mt-1.5 text-sm font-medium text-foreground">{formattedPrice}</p>
+                  )}
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    {formattedPrice
+                      ? "Consultar cores disponíveis."
+                      : "Consultar valores e cores disponíveis."}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
         </div>
         {visible.length === 0 && (
           <div className="py-20 text-center">
@@ -734,7 +742,7 @@ export function Catalog() {
           if (!open) setSelected(null);
         }}
       >
-        <DialogContent className="max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto p-5 sm:p-6">
+        <DialogContent className="h-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto p-5 sm:h-[720px] sm:max-h-[calc(100dvh-2rem)] sm:p-6">
           {selected && (
             <div className="grid gap-6 sm:grid-cols-2">
               <div className="space-y-3">
@@ -743,7 +751,7 @@ export function Catalog() {
                   alt={selected.name}
                   width={768}
                   height={1024}
-                  className="hidden w-full rounded-sm sm:block"
+                  className="hidden h-auto w-full rounded-sm sm:block sm:h-[500px] sm:object-contain"
                 />
                 <div className="grid grid-cols-3 gap-2">
                   {selected.images.map((image, imageIndex) => (
@@ -770,7 +778,7 @@ export function Catalog() {
                   ))}
                 </div>
               </div>
-              <div className="flex flex-col justify-center">
+              <div className="product-dialog-details flex flex-col justify-start">
                 <p className="mb-3 text-xs text-primary">{selected.category}</p>
                 <DialogTitle className="font-display text-3xl font-normal">
                   {selected.name}

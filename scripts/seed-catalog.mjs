@@ -55,6 +55,7 @@ async function ensureProduct(product, categoryId, sortOrder) {
     description: "Consulte tamanhos e disponibilidade pelo WhatsApp.",
     color_label: "Cores disponíveis",
     tag: "",
+    price: product.price ?? null,
     active: true,
     sort_order: sortOrder,
   };
