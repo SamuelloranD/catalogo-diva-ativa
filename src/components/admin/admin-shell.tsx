@@ -2,10 +2,21 @@ import type { User } from "@supabase/supabase-js";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CategoryManager } from "@/components/admin/category-manager";
 import { ProductForm } from "@/components/admin/product-form";
 import type { ProductImageItem } from "@/components/admin/product-image-uploader";
 import { ProductTable } from "@/components/admin/product-table";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import type {
   CatalogCategory,
   CatalogImage,
@@ -52,6 +63,24 @@ export function AdminShell({
 }: AdminShellProps) {
   const [editingProduct, setEditingProduct] = useState<CatalogProduct>();
   const [formOpen, setFormOpen] = useState(false);
+  const [formDirty, setFormDirty] = useState(false);
+  const [discardDialogOpen, setDiscardDialogOpen] = useState(false);
+
+  const closeProductForm = () => {
+    setFormOpen(false);
+    setEditingProduct(undefined);
+    setFormDirty(false);
+    setDiscardDialogOpen(false);
+  };
+
+  const requestCloseProductForm = () => {
+    if (formDirty) {
+      setDiscardDialogOpen(true);
+      return;
+    }
+
+    closeProductForm();
+  };
 
   return (
     <section className="mx-auto grid max-w-[1440px] gap-8 px-6 py-10 lg:px-14">
@@ -77,43 +106,91 @@ export function AdminShell({
           Novo produto
         </Button>
       </div>
-      {formOpen &&
-        (editingProduct ? (
-          <ProductForm
-            product={editingProduct}
-            categories={categories}
-            onCreateCategory={onCreateCategory}
-            onSave={(input, files, removedImages, orderedImages) =>
-              onSaveProduct(editingProduct, input, files, removedImages, orderedImages).then(() =>
-                setFormOpen(false),
-              )
-            }
-            onCancel={() => {
-              setEditingProduct(undefined);
-              setFormOpen(false);
-            }}
-          />
-        ) : (
-          <ProductForm
-            categories={categories}
-            onCreateCategory={onCreateCategory}
-            onSave={(input, files, removedImages, orderedImages) =>
-              onSaveProduct(undefined, input, files, removedImages, orderedImages).then(() =>
-                setFormOpen(false),
-              )
-            }
-            onCancel={() => setFormOpen(false)}
-          />
-        ))}
-      {!formOpen && (
-        <CategoryManager
-          categories={categories}
-          products={[...products, ...archivedProducts]}
-          onCreate={onCreateCategory}
-          onUpdate={onUpdateCategory}
-          onDelete={onDeleteCategory}
-        />
-      )}
+      <Dialog
+        open={formOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            requestCloseProductForm();
+          } else {
+            setFormOpen(true);
+          }
+        }}
+      >
+        <DialogContent
+          overlayClassName="bg-overlay/80 backdrop-blur-sm"
+          showClose={false}
+          className="max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-3xl overflow-hidden rounded-2xl border bg-background p-0 shadow-xl sm:rounded-2xl"
+        >
+          <div className="admin-product-modal-scroll max-h-[calc(100dvh-2rem)] overflow-x-hidden overflow-y-auto">
+            <DialogTitle className="sr-only">
+              {editingProduct ? "Editar produto" : "Novo produto"}
+            </DialogTitle>
+            <DialogDescription className="sr-only">
+              Preencha os dados exibidos no catálogo.
+            </DialogDescription>
+            {editingProduct ? (
+              <ProductForm
+                key={editingProduct.id}
+                product={editingProduct}
+                categories={categories}
+                onCreateCategory={onCreateCategory}
+                onDirtyChange={setFormDirty}
+                showCloseButton
+                embedded
+                onSave={(input, files, removedImages, orderedImages) =>
+                  onSaveProduct(editingProduct, input, files, removedImages, orderedImages).then(
+                    closeProductForm,
+                  )
+                }
+                onCancel={requestCloseProductForm}
+              />
+            ) : (
+              <ProductForm
+                key="new-product"
+                categories={categories}
+                onCreateCategory={onCreateCategory}
+                onDirtyChange={setFormDirty}
+                showCloseButton
+                embedded
+                onSave={(input, files, removedImages, orderedImages) =>
+                  onSaveProduct(undefined, input, files, removedImages, orderedImages).then(
+                    closeProductForm,
+                  )
+                }
+                onCancel={requestCloseProductForm}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <AlertDialog open={discardDialogOpen} onOpenChange={setDiscardDialogOpen}>
+        <AlertDialogContent className="w-[calc(100%-2rem)] max-w-lg rounded-2xl sm:w-full">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Descartar alterações?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {editingProduct
+                ? "As alterações feitas serão perdidas."
+                : "Os campos preenchidos serão perdidos."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={closeProductForm}
+            >
+              Descartar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <CategoryManager
+        categories={categories}
+        products={[...products, ...archivedProducts]}
+        onCreate={onCreateCategory}
+        onUpdate={onUpdateCategory}
+        onDelete={onDeleteCategory}
+      />
       {loading ? (
         <p className="text-sm text-muted-foreground">Carregando produtos...</p>
       ) : (

@@ -41,6 +41,17 @@ describe("Catalog orders", () => {
     ]);
     expect(decodeURIComponent(url)).toContain("2x Conjunto — Verde, tamanho M");
   });
+  it("formats an accessory order without color or size and asks to confirm available colors", () => {
+    const url = whatsappOrderUrl([{ id: "2", name: "Bolsa", color: "", size: "", quantity: 1 }]);
+
+    expect(decodeURIComponent(url)).toContain("1x Bolsa");
+    expect(decodeURIComponent(url)).not.toContain("tamanho");
+    expect(decodeURIComponent(url)).not.toContain("â€” ,");
+    expect(decodeURIComponent(url)).toContain(
+      "Podem confirmar os valores, as cores disponíveis e a entrega?",
+    );
+  });
+
   it("adds matching sizes together, keeping other sizes separate", () => {
     const item = { id: "1", name: "Conjunto", color: "Verde", size: "M" };
     const lines = addOrderLine(addOrderLine([], item), item);

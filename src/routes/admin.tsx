@@ -159,10 +159,18 @@ export function Admin() {
   return (
     <>
       <SiteNavbar
+        variant="admin"
         leadingAction={
-          <Button asChild variant="navbar" size="navbarIconLarge" title="Voltar ao catálogo">
+          <Button
+            asChild
+            variant="navbar"
+            size="navbarIconLarge"
+            className="site-navbar-admin-back-action md:h-10 md:w-auto md:px-4 md:[&_svg]:size-4"
+            title="Voltar ao catálogo"
+          >
             <a href="/" aria-label="Voltar ao catálogo">
-              <CircleArrowLeft />
+              <CircleArrowLeft className="md:hidden" />
+              <span className="hidden md:inline">Voltar ao catálogo</span>
             </a>
           </Button>
         }

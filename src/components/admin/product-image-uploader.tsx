@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, Crop, Trash2 } from "lucide-react";
 
+import { ProductImageEditor } from "@/components/admin/product-image-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { CatalogImage } from "@/lib/catalog-types";
@@ -16,6 +18,12 @@ type ProductImageUploaderProps = {
 
 export function ProductImageUploader({ items, onItemsChange }: ProductImageUploaderProps) {
   const [error, setError] = useState("");
+  const [editingImage, setEditingImage] = useState<{
+    key: string;
+    label: string;
+    url: string;
+  }>();
+  const fileInputId = useId();
   const previewUrls = useMemo(() => {
     const urls = new Map<string, string>();
 
@@ -65,18 +73,41 @@ export function ProductImageUploader({ items, onItemsChange }: ProductImageUploa
     onItemsChange(nextItems);
   }
 
+  function saveEditedImage(file: File) {
+    if (!editingImage) return;
+
+    onItemsChange(
+      items.map((item) => {
+        const itemKey = item.kind === "existing" ? item.image.id : item.clientId;
+        if (itemKey !== editingImage.key) return item;
+
+        return {
+          kind: "new",
+          file,
+          clientId: item.kind === "new" ? item.clientId : `edited-${item.image.id}`,
+        };
+      }),
+    );
+    setEditingImage(undefined);
+  }
+
   return (
     <div className="grid gap-3">
-      <label className="grid gap-2 text-sm font-medium">
-        Adicionar fotos
+      <div className="grid gap-2 text-sm font-medium">
+        <span>Adicionar fotos</span>
+        <Button asChild type="button" variant="outline" className="w-fit">
+          <label htmlFor={fileInputId}>Escolher arquivos</label>
+        </Button>
         <Input
+          id={fileInputId}
           aria-label="Adicionar fotos"
+          className="sr-only"
           type="file"
           accept="image/jpeg,image/png,image/webp,image/avif"
           multiple
           onChange={(event) => handleFilesChange(Array.from(event.target.files ?? []))}
         />
-      </label>
+      </div>
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
@@ -88,6 +119,7 @@ export function ProductImageUploader({ items, onItemsChange }: ProductImageUploa
             const label = item.kind === "existing" ? item.image.altText : item.file.name;
             const imageUrl =
               item.kind === "existing" ? item.image.url : previewUrls.get(item.clientId);
+            const itemKey = item.kind === "existing" ? item.image.id : item.clientId;
 
             return (
               <div
@@ -101,54 +133,80 @@ export function ProductImageUploader({ items, onItemsChange }: ProductImageUploa
                     {label}
                   </div>
                 )}
-                <div className="flex flex-wrap gap-1 p-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={index === 0}
-                    onClick={() => moveImage(index, -1)}
-                    aria-label={`Mover imagem ${label} para cima`}
-                  >
-                    ←
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={index === items.length - 1}
-                    onClick={() => moveImage(index, 1)}
-                    aria-label={`Mover imagem ${label} para baixo`}
-                  >
-                    →
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      onItemsChange(
-                        items.filter((candidate) =>
-                          candidate.kind === "existing"
-                            ? item.kind === "existing"
-                              ? candidate.image.id !== item.image.id
-                              : true
-                            : item.kind === "new"
-                              ? candidate.clientId !== item.clientId
-                              : true,
-                        ),
-                      )
-                    }
-                    aria-label={`Remover imagem ${label}`}
-                  >
-                    Remover
-                  </Button>
+                <div className="grid gap-2 p-2">
+                  <div className="flex items-center justify-center gap-2">
+                    {imageUrl && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        title={`Ajustar imagem ${label}`}
+                        aria-label={`Ajustar imagem ${label}`}
+                        onClick={() => setEditingImage({ key: itemKey, label, url: imageUrl })}
+                      >
+                        <Crop className="size-5" />
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={index === 0}
+                      onClick={() => moveImage(index, -1)}
+                      aria-label={`Mover imagem ${label} para cima`}
+                    >
+                      <ArrowLeft className="size-5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      disabled={index === items.length - 1}
+                      onClick={() => moveImage(index, 1)}
+                      aria-label={`Mover imagem ${label} para baixo`}
+                    >
+                      <ArrowRight className="size-5" />
+                    </Button>
+                  </div>
+                  <div className="flex">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      title={`Remover imagem ${label}`}
+                      onClick={() =>
+                        onItemsChange(
+                          items.filter((candidate) =>
+                            candidate.kind === "existing"
+                              ? item.kind === "existing"
+                                ? candidate.image.id !== item.image.id
+                                : true
+                              : item.kind === "new"
+                                ? candidate.clientId !== item.clientId
+                                : true,
+                          ),
+                        )
+                      }
+                      aria-label={`Remover imagem ${label}`}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
                 </div>
               </div>
             );
           })}
         </div>
       )}
+      <ProductImageEditor
+        open={Boolean(editingImage)}
+        imageUrl={editingImage?.url ?? ""}
+        imageName={editingImage?.label ?? "imagem"}
+        onOpenChange={(open) => {
+          if (!open) setEditingImage(undefined);
+        }}
+        onSave={saveEditedImage}
+      />
     </div>
   );
 }

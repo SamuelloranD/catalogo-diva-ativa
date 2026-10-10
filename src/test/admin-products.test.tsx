@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { User } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
 import { CategoryManager } from "@/components/admin/category-manager";
+import { AdminShell } from "@/components/admin/admin-shell";
 import { ProductForm } from "@/components/admin/product-form";
 import { ProductTable } from "@/components/admin/product-table";
 import type { CatalogCategory, CatalogProduct } from "@/lib/catalog-types";
@@ -26,7 +28,89 @@ const product: CatalogProduct = {
   description: "Descrição do conjunto.",
 };
 
+function renderAdminShell() {
+  return render(
+    <AdminShell
+      user={{ email: "admin@divaativa.com" } as User}
+      products={[product]}
+      archivedProducts={[]}
+      categories={[category]}
+      loading={false}
+      onCreateCategory={vi.fn().mockResolvedValue(category)}
+      onUpdateCategory={vi.fn().mockResolvedValue(undefined)}
+      onDeleteCategory={vi.fn().mockResolvedValue(undefined)}
+      onSaveProduct={vi.fn().mockResolvedValue(undefined)}
+      onArchiveProduct={vi.fn().mockResolvedValue(undefined)}
+      onRestoreProduct={vi.fn().mockResolvedValue(undefined)}
+      onDeleteProduct={vi.fn().mockResolvedValue(undefined)}
+      onSignOut={vi.fn().mockResolvedValue(undefined)}
+    />,
+  );
+}
+
 describe("Admin product controls", () => {
+  it("opens the new product form in a modal", () => {
+    renderAdminShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo produto" }));
+
+    const dialog = screen.getByRole("dialog");
+    const closeButton = screen.getByRole("button", { name: "Fechar modal" });
+
+    expect(dialog).toHaveTextContent("Novo produto");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Preencha os dados exibidos no catálogo.");
+    expect(dialog).toHaveClass("rounded-2xl", "bg-background", "overflow-hidden");
+    expect(dialog).not.toHaveClass("overflow-y-auto");
+    expect(dialog.querySelector(".admin-product-modal-scroll")).toHaveClass(
+      "overflow-x-hidden",
+      "overflow-y-auto",
+    );
+    expect(dialog.querySelector("form")).toContainElement(closeButton);
+    expect(dialog.querySelector("form")).not.toHaveClass("rounded-2xl", "border");
+    expect(closeButton).toHaveClass("h-9", "w-9", "bg-destructive");
+    expect(document.querySelector(".backdrop-blur-sm")).toHaveClass("bg-overlay/80");
+  });
+
+  it("opens the edit product form in a modal", () => {
+    renderAdminShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar Conjunto Aurora" }));
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("Editar produto");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Descrição do conjunto.");
+  });
+
+  it("confirms before discarding a filled new product", () => {
+    renderAdminShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Novo produto" }));
+    fireEvent.change(screen.getByLabelText("Nome da peça"), {
+      target: { value: "Jade Premium" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Fechar modal" }));
+
+    const confirmation = screen.getByRole("alertdialog");
+
+    expect(confirmation).toHaveClass("w-[calc(100%-2rem)]", "rounded-2xl", "overflow-x-hidden");
+    expect(confirmation).toHaveTextContent("Descartar alterações?");
+    expect(confirmation).toHaveTextContent("Os campos preenchidos serão perdidos.");
+  });
+
+  it("confirms before discarding changes to an existing product", () => {
+    renderAdminShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar Conjunto Aurora" }));
+    fireEvent.change(screen.getByLabelText("Nome da peça"), {
+      target: { value: "Jade Premium" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Fechar modal" }));
+
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Descartar alterações?");
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(
+      "As alterações feitas serão perdidas.",
+    );
+  });
+
   it("submits a new category", () => {
     const onCreate = vi.fn().mockResolvedValue(undefined);
     render(<CategoryManager categories={[category]} onCreate={onCreate} />);
@@ -149,6 +233,8 @@ describe("Admin product controls", () => {
 
     const priceInput = screen.getByLabelText("Valor (BRL)");
     expect(priceInput).toHaveValue("0,00");
+    expect(priceInput).toHaveAttribute("inputmode", "numeric");
+    expect(priceInput).not.toHaveAttribute("readonly");
     expect(screen.getByText("R$", { selector: "span" })).toBeInTheDocument();
 
     fireEvent.keyDown(priceInput, { key: "1" });
@@ -158,6 +244,14 @@ describe("Admin product controls", () => {
 
     fireEvent.keyDown(priceInput, { key: "Backspace" });
     expect(priceInput).toHaveValue("0,12");
+  });
+
+  it("uses a custom photo picker without the native filename text", () => {
+    render(<ProductForm categories={[category]} onSave={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.getByLabelText("Adicionar fotos")).toHaveClass("sr-only");
+    expect(screen.getByText("Escolher arquivos")).toBeInTheDocument();
+    expect(screen.queryByText("Nenhum arquivo escolhido")).not.toBeInTheDocument();
   });
 
   it("allows adding a category from the product form", async () => {
@@ -186,7 +280,10 @@ describe("Admin product controls", () => {
     render(<ProductTable products={[product]} onEdit={onEdit} onArchive={onArchive} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Editar Conjunto Aurora" }));
-    fireEvent.click(screen.getByRole("button", { name: "Arquivar Conjunto Aurora" }));
+    const archiveButton = screen.getByRole("button", { name: "Arquivar Conjunto Aurora" });
+
+    expect(archiveButton).toHaveClass("bg-destructive/10");
+    fireEvent.click(archiveButton);
 
     expect(screen.getByRole("alertdialog")).toHaveTextContent("Conjunto Aurora");
     expect(screen.getByRole("alertdialog")).toHaveTextContent("clientes");

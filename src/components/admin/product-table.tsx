@@ -130,8 +130,9 @@ export function ProductTable({
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
-                            variant="destructive"
+                            variant="outline"
                             size="sm"
+                            className="border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
                             aria-label={`Arquivar ${product.name}`}
                           >
                             <Archive aria-hidden="true" />

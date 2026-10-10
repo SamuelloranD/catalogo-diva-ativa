@@ -10,7 +10,6 @@ import {
   Plus,
   Search,
   ShoppingBag,
-  SlidersHorizontal,
   Trash2,
   X,
 } from "lucide-react";
@@ -22,6 +21,7 @@ import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/
 import {
   addOrderLine,
   formatCatalogPrice,
+  isAccessoryCategory,
   whatsappOrderUrl,
   STORE_INSTAGRAM,
   STORE_WHATSAPP,
@@ -496,7 +496,7 @@ export function Catalog() {
   function select(p: Product) {
     setSelected(p);
     setSelectedImageIndex(0);
-    setSize(sizeFilter === "Todos" ? "" : sizeFilter);
+    setSize(isAccessoryCategory(p.category) ? "" : sizeFilter === "Todos" ? "" : sizeFilter);
   }
   function changeQuantity(line: OrderLine, delta: number) {
     setCart((prev) =>
@@ -507,6 +507,8 @@ export function Catalog() {
         .filter((l) => l.quantity > 0),
     );
   }
+  const selectedIsAccessory = selected ? isAccessoryCategory(selected.category) : false;
+  const cartHasSizedItem = cart.some((line) => Boolean(line.size));
   return (
     <>
       <SiteNavbar
@@ -583,8 +585,8 @@ export function Catalog() {
             </Button>
           </div>
         )}
-        <div className="flex items-center justify-between gap-6 border-b">
-          <div className="flex min-w-0 gap-6 overflow-x-auto sm:gap-8">
+        <div className="w-full border-b">
+          <div className="flex w-full min-w-0 gap-6 overflow-x-auto sm:gap-8">
             {catalog.categories.map((c) => (
               <Button
                 key={c}
@@ -598,21 +600,12 @@ export function Catalog() {
               </Button>
             ))}
           </div>
-          <Button
-            variant="ghost"
-            className="hidden shrink-0 gap-2 text-xs sm:flex"
-            onClick={() => setFilterOpen(true)}
-          >
-            <SlidersHorizontal />
-            Filtros
-          </Button>
         </div>
         <div className="flex min-h-16 items-center justify-between gap-4 text-xs text-muted-foreground">
           <span>
             {visible.length} peças {sizeFilter !== "Todos" && `· tamanho ${sizeFilter}`}
           </span>
           <div className="flex items-center gap-2">
-            <span className="hidden sm:inline"></span>
             <CatalogDropdown
               label="Ordenar por"
               value={sort}
@@ -623,15 +616,7 @@ export function Catalog() {
                 { value: "name", label: "Nome: A a Z" },
               ]}
             />
-            <Button
-              className="sm:hidden"
-              variant="ghost"
-              size="icon"
-              aria-label="Filtros"
-              onClick={() => setFilterOpen(true)}
-            >
-              <SlidersHorizontal />
-            </Button>
+            Cores disponíveis e Valor sob consulta
           </div>
         </div>
         <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-6">
@@ -786,30 +771,37 @@ export function Catalog() {
                 <DialogDescription className="mt-4 leading-6">
                   {selected.description}
                 </DialogDescription>
-                <p className="mt-5 text-sm">{selected.color} · Valor sob consulta</p>
-                <p className="mb-3 mt-7 text-xs">Tamanho</p>
-                <div className="flex gap-2">
-                  {["P", "M", "G", "GG"].map((s) => (
-                    <Button
-                      key={s}
-                      variant={size === s ? "default" : "outline"}
-                      aria-pressed={size === s}
-                      onClick={() => setSize(s)}
-                    >
-                      {s}
-                    </Button>
-                  ))}
-                </div>
+                <p className="mt-5 text-sm">
+                  {selectedIsAccessory ? "Cores confirmadas pelo WhatsApp" : selected.color} · Valor
+                  sob consulta
+                </p>
+                {!selectedIsAccessory && (
+                  <>
+                    <p className="mb-3 mt-7 text-xs">Tamanho</p>
+                    <div className="flex gap-2">
+                      {["P", "M", "G", "GG"].map((s) => (
+                        <Button
+                          key={s}
+                          variant={size === s ? "default" : "outline"}
+                          aria-pressed={size === s}
+                          onClick={() => setSize(s)}
+                        >
+                          {s}
+                        </Button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 <Button
-                  disabled={!size}
+                  disabled={!selectedIsAccessory && !size}
                   className="mt-6 h-12"
                   onClick={() => {
                     setCart((prev) =>
                       addOrderLine(prev, {
                         id: selected.id,
                         name: selected.name,
-                        color: selected.color,
-                        size,
+                        color: selectedIsAccessory ? undefined : selected.color,
+                        size: selectedIsAccessory ? undefined : size,
                       }),
                     );
                     setSelected(null);
@@ -844,7 +836,10 @@ export function Catalog() {
               </div>
             ) : (
               cart.map((line) => (
-                <div key={`${line.id}-${line.size}`} className="flex min-w-0 gap-4 border-b py-5">
+                <div
+                  key={`${line.id}-${line.size ?? ""}`}
+                  className="flex min-w-0 gap-4 border-b py-5"
+                >
                   <div className="flex gap-4">
                     <img
                       src={catalog.products.find((p) => p.id === line.id)?.images[0]}
@@ -870,7 +865,9 @@ export function Catalog() {
                           <Trash2 />
                         </Button>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">Tamanho · {line.size}</p>
+                      {line.size && (
+                        <p className="mt-1 text-xs text-muted-foreground">Tamanho · {line.size}</p>
+                      )}
                       <div className="cart-item-actions mt-3 flex flex-wrap items-center gap-2">
                         <div className="flex items-center gap-2 border">
                           <Button
@@ -901,7 +898,9 @@ export function Catalog() {
           {cart.length > 0 && (
             <div className="border-t pt-5">
               <p className="mb-4 text-xs leading-5 text-muted-foreground">
-                A Diva Ativa confirma os valores, tamanhos e a entrega com você pelo WhatsApp.
+                {cartHasSizedItem
+                  ? "A Diva Ativa confirma os valores, tamanhos e a entrega com você pelo WhatsApp."
+                  : "A Diva Ativa confirma os valores, as cores disponíveis e a entrega com você pelo WhatsApp."}
               </p>
               <Button
                 asChild

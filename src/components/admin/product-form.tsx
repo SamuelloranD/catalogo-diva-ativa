@@ -1,4 +1,5 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { X } from "lucide-react";
 
 import { CatalogDropdown } from "@/components/ui/catalog-dropdown";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,9 @@ type ProductFormProps = {
     orderedImages: ProductImageItem[],
   ) => Promise<void>;
   onCancel: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
+  showCloseButton?: boolean;
+  embedded?: boolean;
 };
 
 export function ProductForm({
@@ -39,16 +43,24 @@ export function ProductForm({
   onCreateCategory,
   onSave,
   onCancel,
+  onDirtyChange,
+  showCloseButton = false,
+  embedded = false,
 }: ProductFormProps) {
-  const [name, setName] = useState(product?.name ?? "");
-  const [categoryId, setCategoryId] = useState(product?.categoryId ?? "");
-  const [brand, setBrand] = useState(product?.brand ?? "Diva Ativa");
-  const [description, setDescription] = useState(product?.description ?? "");
-  const [colorLabel, setColorLabel] = useState(product?.color ?? "Cores disponíveis");
-  const [tag, setTag] = useState(product?.tag ?? "");
-  const [priceCents, setPriceCents] = useState(
-    product?.price === undefined ? 0 : Math.round(product.price * 100),
-  );
+  const initialName = product?.name ?? "";
+  const initialCategoryId = product?.categoryId ?? "";
+  const initialBrand = product?.brand ?? "Diva Ativa";
+  const initialDescription = product?.description ?? "";
+  const initialColorLabel = product?.color ?? "Cores disponíveis";
+  const initialTag = product?.tag ?? "";
+  const initialPriceCents = product?.price === undefined ? 0 : Math.round(product.price * 100);
+  const [name, setName] = useState(initialName);
+  const [categoryId, setCategoryId] = useState(initialCategoryId);
+  const [brand, setBrand] = useState(initialBrand);
+  const [description, setDescription] = useState(initialDescription);
+  const [colorLabel, setColorLabel] = useState(initialColorLabel);
+  const [tag, setTag] = useState(initialTag);
+  const [priceCents, setPriceCents] = useState(initialPriceCents);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [categoryError, setCategoryError] = useState("");
@@ -63,6 +75,25 @@ export function ProductForm({
     () => categories.map((category) => ({ value: category.id, label: category.name })),
     [categories],
   );
+  const imagesChanged =
+    imageItems.length !== originalImages.length ||
+    imageItems.some(
+      (item, index) => item.kind !== "existing" || item.image.id !== originalImages[index]?.id,
+    );
+  const isDirty =
+    name !== initialName ||
+    categoryId !== initialCategoryId ||
+    brand !== initialBrand ||
+    description !== initialDescription ||
+    colorLabel !== initialColorLabel ||
+    tag !== initialTag ||
+    priceCents !== initialPriceCents ||
+    newCategoryName.trim().length > 0 ||
+    imagesChanged;
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   async function handleCreateCategory() {
     if (!onCreateCategory || !newCategoryName.trim()) return;
@@ -124,8 +155,24 @@ export function ProductForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="grid gap-5 rounded-2xl border bg-background p-5">
-      <div>
+    <form
+      onSubmit={handleSubmit}
+      className={`relative grid gap-5 p-5 ${embedded ? "" : "rounded-2xl border bg-background"}`}
+    >
+      {showCloseButton && (
+        <Button
+          type="button"
+          variant="destructive"
+          size="icon"
+          aria-label="Fechar modal"
+          title="Fechar modal"
+          className="absolute right-4 top-4 rounded-full shadow-md ring-2 ring-background transition-all hover:shadow-lg focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
+          onClick={onCancel}
+        >
+          <X className="size-5" />
+        </Button>
+      )}
+      <div className={showCloseButton ? "pr-12" : undefined}>
         <h3 className="font-medium">{product ? "Editar produto" : "Novo produto"}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Preencha os dados exibidos no catálogo.
@@ -223,8 +270,11 @@ export function ProductForm({
             aria-label="Valor (BRL)"
             className="pl-10"
             inputMode="numeric"
-            readOnly
             value={formatCatalogPriceInput(priceCents)}
+            onChange={(event) => {
+              const digits = event.target.value.replace(/\D/g, "");
+              setPriceCents(digits ? Number(digits) : 0);
+            }}
             onKeyDown={(event) => {
               if (/^\d$/.test(event.key)) {
                 event.preventDefault();

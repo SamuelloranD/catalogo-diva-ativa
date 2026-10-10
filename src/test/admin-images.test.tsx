@@ -73,4 +73,40 @@ describe("Product image uploader", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("6 MB");
     expect(onFilesChange).not.toHaveBeenCalled();
   });
+
+  it("opens an image adjustment modal with an accessible zoom control", () => {
+    render(<ProductImageUploader items={[{ kind: "existing", image }]} onItemsChange={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Ajustar imagem Imagem principal" }));
+
+    expect(screen.getByRole("dialog", { name: "Ajustar imagem" })).toBeInTheDocument();
+    const zoomControl = screen.getByRole("slider", { name: "Zoom da imagem" });
+    expect(zoomControl).toHaveValue("1");
+
+    fireEvent.change(zoomControl, { target: { value: "1.4" } });
+
+    expect(zoomControl).toHaveValue("1.4");
+  });
+
+  it("keeps image adjustment and reorder controls symmetric", () => {
+    render(<ProductImageUploader items={[{ kind: "existing", image }]} onItemsChange={vi.fn()} />);
+
+    const adjustButton = screen.getByRole("button", {
+      name: "Ajustar imagem Imagem principal",
+    });
+    const moveLeftButton = screen.getByRole("button", {
+      name: "Mover imagem Imagem principal para cima",
+    });
+    const moveRightButton = screen.getByRole("button", {
+      name: "Mover imagem Imagem principal para baixo",
+    });
+
+    expect(adjustButton).toHaveClass("h-9", "w-9");
+    expect(moveLeftButton).toHaveClass("h-9", "w-9");
+    expect(moveRightButton).toHaveClass("h-9", "w-9");
+    expect(moveLeftButton.querySelector("svg")).toHaveClass("size-5");
+    expect(moveRightButton.querySelector("svg")).toHaveClass("size-5");
+    expect(adjustButton.parentElement).toHaveClass("justify-center", "gap-2");
+    expect(adjustButton.parentElement).toBe(moveRightButton.parentElement);
+  });
 });

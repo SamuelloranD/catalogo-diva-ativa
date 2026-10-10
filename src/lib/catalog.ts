@@ -1,6 +1,22 @@
 export const STORE_WHATSAPP = "558398794812";
 export const STORE_INSTAGRAM = "https://www.instagram.com/diva.ativamodafitness/";
-export type OrderLine = { id: string; name: string; color: string; size: string; quantity: number };
+export type OrderLine = {
+  id: string;
+  name: string;
+  color?: string;
+  size?: string;
+  quantity: number;
+};
+
+export function isAccessoryCategory(category: string) {
+  return (
+    category
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim() === "acessorios"
+  );
+}
 
 const catalogPriceFormatter = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -59,9 +75,16 @@ export function whatsappOrderUrl(lines: OrderLine[]) {
   const text = [
     "Olá, Diva Ativa! Gostaria de fazer um pedido:",
     "",
-    ...lines.map((line) => `${line.quantity}x ${line.name} — ${line.color}, tamanho ${line.size}`),
+    ...lines.map((line) => {
+      const color = line.color?.trim();
+      const size = line.size?.trim();
+      const details = [color, size ? `tamanho ${size}` : undefined].filter(Boolean).join(", ");
+      return `${line.quantity}x ${line.name}${details ? ` — ${details}` : ""}`;
+    }),
     "",
-    "Podem confirmar os valores e a disponibilidade?",
+    lines.some((line) => line.size?.trim())
+      ? "Podem confirmar os valores e a disponibilidade?"
+      : "Podem confirmar os valores, as cores disponíveis e a entrega?",
   ].join("\n");
   return `https://wa.me/${STORE_WHATSAPP}?text=${encodeURIComponent(text)}`;
 }
