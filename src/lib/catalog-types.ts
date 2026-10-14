@@ -18,6 +18,8 @@ export type CatalogImage = {
   altText: string;
 };
 
+export type CatalogColor = { name: string; hex?: string; sizes?: string[] };
+
 export type CatalogProduct = {
   id: string;
   name: string;
@@ -27,7 +29,7 @@ export type CatalogProduct = {
   categoryIds?: string[];
   categories?: string[];
   color: string;
-  colors?: Array<{ name: string; hex?: string }>;
+  colors?: CatalogColor[];
   sizes?: string[];
   swatch?: string;
   images: string[];
@@ -44,7 +46,7 @@ export type ProductInput = {
   name: string;
   categoryId: string;
   categoryIds?: string[];
-  colors?: Array<{ name: string; hex?: string }>;
+  colors?: CatalogColor[];
   sizes?: string[];
   brand: string;
   description: string;

@@ -23,9 +23,11 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { Sheet, SheetContent, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import {
   addOrderLine,
+  colorSupportsSize,
   formatCatalogPrice,
-  isAccessoryCategory,
+  isProductVariationAvailable,
   orderSubtotal,
+  productAvailableSizes,
   replaceOrderLine,
   sameOrderLine,
   whatsappOrderText,
@@ -476,7 +478,6 @@ export function Catalog() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [category, setCategory] = useState("Todas as peças");
   const [query, setQuery] = useState("");
-  const [searchOpen, setSearchOpen] = useState(false);
   const [sort, setSort] = useState("featured");
   const [selected, setSelected] = useState<Product | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
@@ -543,17 +544,13 @@ export function Catalog() {
         .filter((l) => l.quantity > 0),
     );
   }
-  const selectedIsAccessory = selected ? isAccessoryCategory(selected.category) : false;
-  const selectedSizes = selected?.sizes ?? (selectedIsAccessory ? [] : ["P", "M", "G", "GG"]);
+  const selectedSizes = selected ? productAvailableSizes(selected) : [];
   const displayedSizes = [
     ...CATALOG_SIZE_OPTIONS,
     ...selectedSizes.filter((option) => !CATALOG_SIZE_OPTIONS.some((size) => size === option)),
   ];
   const selectedColors = selected?.colors ?? [];
-  const canAdd =
-    selected &&
-    (selectedSizes.length === 0 || Boolean(size)) &&
-    (selectedColors.length < 2 || Boolean(color));
+  const canAdd = selected && isProductVariationAvailable(selected, { size, color });
   function sendOrder() {
     setCopyFallback(false);
     const popup = window.open(whatsappOrderUrl(cart), "_blank");
@@ -563,14 +560,7 @@ export function Catalog() {
   function lineIsUnavailable(line: OrderLine) {
     const product = catalog.products.find((item) => item.id === line.id);
     if (!product) return catalog.source === "remote";
-    return Boolean(
-      (product.sizes?.length && !line.size) ||
-      (product.sizes && line.size && !product.sizes.includes(line.size)) ||
-      (product.colors?.length && !line.color) ||
-      (product.colors?.length &&
-        line.color &&
-        !product.colors.some((option) => option.name === line.color)),
-    );
+    return !isProductVariationAvailable(product, line);
   }
   return (
     <>
@@ -582,7 +572,7 @@ export function Catalog() {
               <Search className="size-4" />
               <input
                 aria-label="Buscar produtos"
-                placeholder="Buscar produtos, categorias..."
+                placeholder="Buscar produtos..."
                 className="h-10 w-52 bg-transparent text-xs outline-none placeholder:text-white/75"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
@@ -628,7 +618,7 @@ export function Catalog() {
                 document.getElementById("pecas")?.scrollIntoView({ behavior: "smooth" })
               }
             >
-              Explorar peças <ArrowRight />
+              Explorar peças
             </Button>
           </div>
         </section>
@@ -660,30 +650,27 @@ export function Catalog() {
             <h2 className="font-display text-3xl sm:text-4xl">Encontre seu próximo look</h2>
           </div>
         </div>
-        {searchOpen && (
-          <div className="mb-5 flex items-center gap-3 rounded-md border px-4 py-3">
-            <Search size={18} />
-            <input
-              autoFocus
-              aria-label="Buscar no catálogo"
-              placeholder="O que você está procurando?"
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+        <div className="mb-5 flex items-center gap-3 rounded-lg border border-primary/20 bg-secondary/70 px-4 py-2.5 shadow-sm transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10 lg:hidden">
+          <Search size={18} aria-hidden="true" className="shrink-0 text-primary/70" />
+          <input
+            aria-label="Buscar no catálogo"
+            placeholder="Buscar produtos ou categorias..."
+            className="h-8 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          {query && (
             <Button
               size="icon"
               variant="ghost"
-              aria-label="Fechar busca"
-              onClick={() => {
-                setSearchOpen(false);
-                setQuery("");
-              }}
+              aria-label="Limpar busca"
+              className="h-7 w-7 shrink-0 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
+              onClick={() => setQuery("")}
             >
               <X />
             </Button>
-          </div>
-        )}
+          )}
+        </div>
         <div className="w-full border-b">
           <div className="flex w-full min-w-0 gap-6 overflow-x-auto whitespace-nowrap sm:gap-8">
             {catalog.categories.map((c) => (
@@ -962,9 +949,18 @@ export function Catalog() {
                           type="button"
                           variant="colorOption"
                           aria-pressed={color === option.name}
-                          aria-label={`Cor ${option.name}`}
+                          aria-label={`Cor ${option.name}${size && !colorSupportsSize(selected, option.name, size) ? " indisponível" : ""}`}
+                          disabled={Boolean(
+                            size && !colorSupportsSize(selected, option.name, size),
+                          )}
                           className="catalog-color-option h-auto min-h-16 w-20 flex-col gap-2 whitespace-normal rounded-none p-1 text-center text-[11px] leading-tight"
-                          onClick={() => setColor(option.name)}
+                          onClick={() =>
+                            setColor((current) =>
+                              current === option.name && selectedColors.length > 1
+                                ? ""
+                                : option.name,
+                            )
+                          }
                         >
                           <span
                             className="catalog-color-swatch shrink-0"
@@ -985,7 +981,9 @@ export function Catalog() {
                     </legend>
                     <div className="flex flex-wrap gap-2">
                       {displayedSizes.map((option) => {
-                        const available = selectedSizes.includes(option);
+                        const available =
+                          selectedSizes.includes(option) &&
+                          (!color || colorSupportsSize(selected, color, option));
                         return (
                           <Button
                             key={option}
@@ -996,7 +994,7 @@ export function Catalog() {
                             title={available ? option : `${option} indisponível`}
                             disabled={!available}
                             className="catalog-size-option h-10 w-10 p-0"
-                            onClick={() => setSize(option)}
+                            onClick={() => setSize((current) => (current === option ? "" : option))}
                           >
                             {option}
                           </Button>
@@ -1140,7 +1138,7 @@ export function Catalog() {
                           ) : null;
                         return (
                           <div className="mt-2 flex flex-wrap gap-2">
-                            {(product.sizes?.length ?? 0) > 1 && (
+                            {productAvailableSizes(product).length > 1 && (
                               <select
                                 aria-label={`Alterar tamanho de ${line.name}`}
                                 value={line.size ?? ""}
@@ -1154,12 +1152,22 @@ export function Catalog() {
                                   )
                                 }
                               >
-                                {line.size && !product.sizes?.includes(line.size) && (
-                                  <option value={line.size}>{line.size} (indisponível)</option>
-                                )}
-                                {product.sizes?.map((option) => (
-                                  <option key={option} value={option}>
+                                {line.size &&
+                                  !productAvailableSizes(product).includes(line.size) && (
+                                    <option value={line.size}>{line.size} (indisponível)</option>
+                                  )}
+                                {productAvailableSizes(product).map((option) => (
+                                  <option
+                                    key={option}
+                                    value={option}
+                                    disabled={Boolean(
+                                      line.color && !colorSupportsSize(product, line.color, option),
+                                    )}
+                                  >
                                     {option}
+                                    {line.color && !colorSupportsSize(product, line.color, option)
+                                      ? " (indisponível)"
+                                      : ""}
                                   </option>
                                 ))}
                               </select>
@@ -1183,8 +1191,19 @@ export function Catalog() {
                                     <option value={line.color}>{line.color} (indisponível)</option>
                                   )}
                                 {product.colors?.map((option) => (
-                                  <option key={option.name} value={option.name}>
+                                  <option
+                                    key={option.name}
+                                    value={option.name}
+                                    disabled={Boolean(
+                                      line.size &&
+                                      !colorSupportsSize(product, option.name, line.size),
+                                    )}
+                                  >
                                     {option.name}
+                                    {line.size &&
+                                    !colorSupportsSize(product, option.name, line.size)
+                                      ? " (indisponível)"
+                                      : ""}
                                   </option>
                                 ))}
                               </select>

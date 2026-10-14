@@ -82,6 +82,8 @@ export function ProductTable({
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
+  const visiblePageCount = Math.min(3, pageCount);
+  const firstVisiblePage = Math.max(1, Math.min(currentPage - 1, pageCount - visiblePageCount + 1));
   const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const selectableRows = pageRows.filter((product) => product.active !== false);
   const selectedProducts = products.filter(
@@ -434,7 +436,7 @@ export function ProductTable({
           {filtered.length} {filtered.length === 1 ? "produto encontrado" : "produtos encontrados"}
         </span>
         {pageCount > 1 && (
-          <nav aria-label="Páginas de produtos" className="flex items-center gap-1">
+          <nav aria-label="Páginas de produtos" className="flex max-w-full items-center gap-1">
             <Button
               type="button"
               variant="outline"
@@ -445,19 +447,21 @@ export function ProductTable({
             >
               <ChevronLeft />
             </Button>
-            {Array.from({ length: pageCount }, (_, index) => (
-              <Button
-                key={index}
-                type="button"
-                variant={currentPage === index + 1 ? "default" : "outline"}
-                size="icon"
-                aria-label={`Página ${index + 1}`}
-                aria-current={currentPage === index + 1 ? "page" : undefined}
-                onClick={() => setPage(index + 1)}
-              >
-                {index + 1}
-              </Button>
-            ))}
+            {Array.from({ length: visiblePageCount }, (_, index) => firstVisiblePage + index).map(
+              (pageNumber) => (
+                <Button
+                  key={pageNumber}
+                  type="button"
+                  variant={currentPage === pageNumber ? "default" : "outline"}
+                  size="icon"
+                  aria-label={`Página ${pageNumber}`}
+                  aria-current={currentPage === pageNumber ? "page" : undefined}
+                  onClick={() => setPage(pageNumber)}
+                >
+                  {pageNumber}
+                </Button>
+              ),
+            )}
             <Button
               type="button"
               variant="outline"

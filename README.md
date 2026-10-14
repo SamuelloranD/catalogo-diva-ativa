@@ -48,6 +48,8 @@ Depois disso, acesse `/admin` para entrar e gerenciar produtos, categorias e ima
 
 No painel, **Produtos** reúne busca, filtros, ordenação, paginação e arquivamento individual ou em lote. **Categorias** mostra os vínculos com produtos e permite buscar, criar, renomear e excluir categorias. A criação e edição de produtos acontece em uma tela própria, organizada por informações gerais, categorias, variações e fotos; no celular, o formulário usa abas para essas seções.
 
+Quando o produto tem cores, marque os tamanhos disponíveis em cada cor. O campo `products.sizes` guarda a união desses tamanhos e cada item de `products.colors` guarda sua própria lista `sizes`. Produtos antigos sem `sizes` dentro das cores continuam oferecendo todos os tamanhos gerais em cada cor até serem editados. Esta estrutura usa a coluna JSONB `colors` da migração existente; não exige outra migração.
+
 Se salvar um produto retornar `PGRST204` para `sizes` ou `colors`, ou `PGRST205` para `product_categories`, confirme que a migração `20261014_product_variations.sql` foi aplicada ao mesmo projeto Supabase configurado no `.env`. A migração já solicita a atualização do cache de esquema do PostgREST ao final. Se as colunas e a tabela já existirem, mas o erro persistir, execute `notify pgrst, 'reload schema';` no SQL Editor e tente novamente. A segunda categoria só pode ser gravada depois que a tabela `product_categories` existir.
 
 ### Importar o catálogo atual

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { CatalogColor } from "@/lib/catalog-types";
 
 export type Database = {
   public: {
@@ -36,7 +37,7 @@ export type Database = {
           sort_order: number;
           price: number | null;
           sizes: string[] | null;
-          colors: Array<{ name: string; hex?: string }> | null;
+          colors: CatalogColor[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -52,7 +53,7 @@ export type Database = {
           sort_order?: number;
           price?: number | null;
           sizes?: string[] | null;
-          colors?: Array<{ name: string; hex?: string }> | null;
+          colors?: CatalogColor[] | null;
         };
         Update: Partial<Database["public"]["Tables"]["products"]["Insert"]>;
         Relationships: [];

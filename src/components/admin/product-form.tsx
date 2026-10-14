@@ -77,7 +77,10 @@ export function ProductForm({
         ? []
         : ["P", "M", "G", "GG"]
       : ["P", "M", "G", "G1", "G2"]);
-  const initialColors = product?.colors ?? [];
+  const initialColors = (product?.colors ?? []).map((color) => ({
+    ...color,
+    sizes: color.sizes ?? initialSizes,
+  }));
   const initialBrand = product?.brand ?? "Diva Ativa";
   const initialDescription = product?.description ?? "";
   const initialColorLabel = product?.color ?? "Cores disponíveis";
@@ -88,6 +91,13 @@ export function ProductForm({
   const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds);
   const [sizes, setSizes] = useState<string[]>(initialSizes);
   const [colors, setColors] = useState(initialColors);
+  const sizeOptions = [
+    ...new Set([
+      ...CATALOG_SIZE_OPTIONS,
+      ...sizes,
+      ...colors.flatMap((color) => color.sizes ?? []),
+    ]),
+  ];
   const [brand, setBrand] = useState(initialBrand);
   const [description, setDescription] = useState(initialDescription);
   const [colorLabel, setColorLabel] = useState(initialColorLabel);
@@ -158,6 +168,35 @@ export function ProductForm({
       return;
     }
 
+    const savedColors = colors
+      .filter((color) => color.name.trim())
+      .map((color) => ({
+        name: color.name.trim(),
+        ...(color.hex ? { hex: color.hex } : {}),
+        sizes: color.sizes ?? [],
+      }));
+    if (colors.some((color) => !color.name.trim() && (color.sizes?.length ?? 0) > 0)) {
+      setError("Informe o nome da cor antes de selecionar os tamanhos.");
+      return;
+    }
+    const colorNames = savedColors.map((color) => color.name.toLocaleLowerCase("pt-BR"));
+    if (new Set(colorNames).size !== colorNames.length) {
+      setError("Cada cor precisa ter um nome diferente.");
+      return;
+    }
+    const selectedCategory = categories.find((category) => category.id === categoryId)?.name ?? "";
+    if (
+      savedColors.length > 0 &&
+      !isAccessoryCategory(selectedCategory) &&
+      savedColors.some((color) => color.sizes.length === 0)
+    ) {
+      setError("Selecione ao menos um tamanho para cada cor.");
+      return;
+    }
+    const savedSizes = savedColors.length
+      ? sizeOptions.filter((option) => savedColors.some((color) => color.sizes.includes(option)))
+      : sizes;
+
     setSaving(true);
     setError("");
     try {
@@ -174,13 +213,8 @@ export function ProductForm({
           name,
           categoryId,
           categoryIds: [...new Set([categoryId, ...categoryIds])],
-          sizes,
-          colors: colors
-            .filter((color) => color.name.trim())
-            .map((color) => ({
-              name: color.name.trim(),
-              ...(color.hex ? { hex: color.hex } : {}),
-            })),
+          sizes: savedSizes,
+          colors: savedColors,
           brand,
           description,
           colorLabel,
@@ -420,37 +454,43 @@ export function ProductForm({
             <div>
               <h2 className="text-sm font-semibold">Tamanhos disponíveis</h2>
               <p className="mt-1 text-xs text-muted-foreground">
-                Selecione os tamanhos deste produto.
+                {colors.length
+                  ? "Defina os tamanhos de cada cor abaixo."
+                  : "Selecione os tamanhos deste produto."}
               </p>
             </div>
-            <fieldset>
-              <legend className="sr-only">Tamanhos deste produto</legend>
-              <div className="flex flex-wrap gap-2">
-                {CATALOG_SIZE_OPTIONS.map((option) => (
-                  <label key={option} className="cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="peer sr-only"
-                      checked={sizes.includes(option)}
-                      onChange={(event) =>
-                        setSizes((current) =>
-                          event.target.checked
-                            ? [...current, option]
-                            : current.filter((value) => value !== option),
-                        )
-                      }
-                      aria-label={option}
-                    />
-                    <span className="inline-flex h-9 min-w-10 items-center justify-center rounded-md border px-2 text-xs font-medium transition-colors peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground">
-                      {option}
-                    </span>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-            <p className="text-xs text-muted-foreground">
-              Deixe todos desmarcados para peças sem tamanho.
-            </p>
+            {colors.length === 0 && (
+              <fieldset>
+                <legend className="sr-only">Tamanhos deste produto</legend>
+                <div className="flex flex-wrap gap-2">
+                  {sizeOptions.map((option) => (
+                    <label key={option} className="cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="peer sr-only"
+                        checked={sizes.includes(option)}
+                        onChange={(event) =>
+                          setSizes((current) =>
+                            event.target.checked
+                              ? [...current, option]
+                              : current.filter((value) => value !== option),
+                          )
+                        }
+                        aria-label={option}
+                      />
+                      <span className="inline-flex h-9 min-w-10 items-center justify-center rounded-md border px-2 text-xs font-medium transition-colors peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground">
+                        {option}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            {colors.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                Deixe todos desmarcados para peças sem tamanho.
+              </p>
+            )}
           </section>
 
           <section
@@ -463,43 +503,77 @@ export function ProductForm({
               </p>
             </div>
             {colors.map((color, index) => (
-              <div key={index} className="flex items-center gap-2 rounded-md border p-2">
-                <Input
-                  aria-label={`Código hexadecimal da cor ${index + 1}`}
-                  type="color"
-                  className="h-8 w-9 shrink-0 border-0 p-0"
-                  value={color.hex ?? "#607354"}
-                  onChange={(event) =>
-                    setColors((current) =>
-                      current.map((item, position) =>
-                        position === index ? { ...item, hex: event.target.value } : item,
-                      ),
-                    )
-                  }
-                />
-                <Input
-                  aria-label={`Nome da cor ${index + 1}`}
-                  placeholder="Nome da cor"
-                  value={color.name}
-                  onChange={(event) =>
-                    setColors((current) =>
-                      current.map((item, position) =>
-                        position === index ? { ...item, name: event.target.value } : item,
-                      ),
-                    )
-                  }
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={`Remover cor ${index + 1}`}
-                  onClick={() =>
-                    setColors((current) => current.filter((_, position) => position !== index))
-                  }
-                >
-                  <X />
-                </Button>
+              <div key={index} className="grid gap-3 rounded-md border p-3">
+                <div className="flex items-center gap-2">
+                  <Input
+                    aria-label={`Código hexadecimal da cor ${index + 1}`}
+                    type="color"
+                    className="h-8 w-9 shrink-0 border-0 p-0"
+                    value={color.hex ?? "#607354"}
+                    onChange={(event) =>
+                      setColors((current) =>
+                        current.map((item, position) =>
+                          position === index ? { ...item, hex: event.target.value } : item,
+                        ),
+                      )
+                    }
+                  />
+                  <Input
+                    aria-label={`Nome da cor ${index + 1}`}
+                    placeholder="Nome da cor"
+                    value={color.name}
+                    onChange={(event) =>
+                      setColors((current) =>
+                        current.map((item, position) =>
+                          position === index ? { ...item, name: event.target.value } : item,
+                        ),
+                      )
+                    }
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={`Remover cor ${index + 1}`}
+                    onClick={() =>
+                      setColors((current) => current.filter((_, position) => position !== index))
+                    }
+                  >
+                    <X />
+                  </Button>
+                </div>
+                <fieldset>
+                  <legend className="mb-2 text-xs font-medium">Tamanhos desta cor</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {sizeOptions.map((option) => (
+                      <label key={option} className="cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="peer sr-only"
+                          aria-label={`Tamanho ${option} da cor ${color.name.trim() || index + 1}`}
+                          checked={color.sizes?.includes(option) ?? false}
+                          onChange={(event) =>
+                            setColors((current) =>
+                              current.map((item, position) =>
+                                position === index
+                                  ? {
+                                      ...item,
+                                      sizes: event.target.checked
+                                        ? [...(item.sizes ?? []), option]
+                                        : (item.sizes ?? []).filter((value) => value !== option),
+                                    }
+                                  : item,
+                              ),
+                            )
+                          }
+                        />
+                        <span className="inline-flex h-9 min-w-10 items-center justify-center rounded-md border px-2 text-xs font-medium transition-colors peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground">
+                          {option}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
               </div>
             ))}
             <Button
@@ -507,7 +581,7 @@ export function ProductForm({
               variant="outline"
               size="sm"
               className="w-fit"
-              onClick={() => setColors((current) => [...current, { name: "" }])}
+              onClick={() => setColors((current) => [...current, { name: "", sizes: [] }])}
             >
               + Adicionar cor
             </Button>

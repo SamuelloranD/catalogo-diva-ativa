@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { User } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 
@@ -327,16 +327,95 @@ describe("Admin product controls", () => {
     expect(screen.getByLabelText("G1")).toBeChecked();
     expect(screen.getByLabelText("G2")).toBeChecked();
     expect(screen.getByLabelText("GG")).not.toBeChecked();
-    fireEvent.click(screen.getByLabelText("P"));
     fireEvent.click(screen.getByRole("button", { name: /Adicionar cor/ }));
     fireEvent.change(screen.getByLabelText("Nome da cor 1"), { target: { value: "Vinho" } });
+    fireEvent.click(screen.getByLabelText("Tamanho M da cor Vinho"));
     fireEvent.click(screen.getByRole("button", { name: "Salvar produto" }));
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({
           categoryIds: [category.id, runningCategory.id],
-          sizes: ["M", "G", "G1", "G2"],
-          colors: [{ name: "Vinho" }],
+          sizes: ["M"],
+          colors: [{ name: "Vinho", sizes: ["M"] }],
+        }),
+        expect.any(Array),
+        expect.any(Array),
+        expect.any(Array),
+      ),
+    );
+  });
+
+  it("saves distinct available sizes for each color", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(<ProductForm categories={[category]} onSave={onSave} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Nome da peça"), { target: { value: "Conjunto X" } });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Selecione a categoria" }), {
+      key: "ArrowDown",
+    });
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Conjuntos" }));
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar cor/ }));
+    fireEvent.change(screen.getByLabelText("Nome da cor 1"), { target: { value: "Verde" } });
+    fireEvent.click(screen.getByLabelText("Tamanho P da cor Verde"));
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar cor/ }));
+    fireEvent.change(screen.getByLabelText("Nome da cor 2"), { target: { value: "Rosa" } });
+    fireEvent.click(screen.getByLabelText("Tamanho G da cor Rosa"));
+    fireEvent.click(screen.getByRole("button", { name: "Salvar produto" }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sizes: ["P", "G"],
+          colors: [
+            { name: "Verde", sizes: ["P"] },
+            { name: "Rosa", sizes: ["G"] },
+          ],
+        }),
+        expect.any(Array),
+        expect.any(Array),
+        expect.any(Array),
+      ),
+    );
+  });
+
+  it("requires sizes for each color of a sized product", () => {
+    const onSave = vi.fn();
+    render(<ProductForm categories={[category]} onSave={onSave} onCancel={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Nome da peça"), { target: { value: "Conjunto X" } });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Selecione a categoria" }), {
+      key: "ArrowDown",
+    });
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Conjuntos" }));
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar cor/ }));
+    fireEvent.change(screen.getByLabelText("Nome da cor 1"), { target: { value: "Verde" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar produto" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Selecione ao menos um tamanho para cada cor.",
+    );
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy color availability when an existing product is edited", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const legacyProduct = {
+      ...product,
+      sizes: ["P", "G"],
+      colors: [{ name: "Verde", hex: "#476243" }],
+    };
+    render(
+      <ProductForm
+        product={legacyProduct}
+        categories={[category]}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Tamanho P da cor Verde")).toBeChecked();
+    expect(screen.getByLabelText("Tamanho G da cor Verde")).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sizes: ["P", "G"],
+          colors: [{ name: "Verde", hex: "#476243", sizes: ["P", "G"] }],
         }),
         expect.any(Array),
         expect.any(Array),
@@ -454,6 +533,24 @@ describe("Admin product controls", () => {
       target: { value: "active" },
     });
     expect(screen.getByText("Nenhum produto encontrado para estes filtros.")).toBeInTheDocument();
+  });
+
+  it("keeps product pagination compact when there are many pages", () => {
+    const products = Array.from({ length: 50 }, (_, index) => ({
+      ...product,
+      id: `product-${index}`,
+      name: `Peça ${index + 1}`,
+    }));
+    render(<ProductTable products={products} mode="all" />);
+
+    const pages = screen.getByRole("navigation", { name: "Páginas de produtos" });
+    expect(within(pages).getByRole("button", { name: "Página 1" })).toBeInTheDocument();
+    expect(within(pages).getByRole("button", { name: "Página 3" })).toBeInTheDocument();
+    expect(within(pages).queryByRole("button", { name: "Página 4" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(pages).getByRole("button", { name: "Página 3" }));
+    expect(within(pages).getByRole("button", { name: "Página 4" })).toBeInTheDocument();
+    expect(within(pages).queryByRole("button", { name: "Página 1" })).not.toBeInTheDocument();
   });
 
   it("archives selected active products after confirmation", async () => {

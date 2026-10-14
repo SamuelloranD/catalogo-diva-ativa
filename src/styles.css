@@ -73,10 +73,29 @@
 }
 .catalog-color-swatch {
   display: block;
+  position: relative;
+  overflow: hidden;
   width: 28px;
   height: 28px;
   border: 1px solid var(--border);
   border-radius: 50%;
+}
+.catalog-color-option:disabled {
+  opacity: 1;
+  color: var(--muted-foreground);
+}
+.catalog-color-option:disabled .catalog-color-swatch {
+  opacity: 0.5;
+}
+.catalog-color-option:disabled .catalog-color-swatch::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140%;
+  height: 1px;
+  background: var(--foreground);
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 .catalog-color-option[aria-pressed="true"] .catalog-color-swatch {
   box-shadow:

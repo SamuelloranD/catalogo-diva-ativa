@@ -1,4 +1,6 @@
 export const STORE_WHATSAPP = "558398794812";
+import type { CatalogProduct } from "@/lib/catalog-types";
+
 export const STORE_INSTAGRAM = "https://www.instagram.com/diva.ativamodafitness/";
 export type OrderLine = {
   id: string;
@@ -17,6 +19,29 @@ export function isAccessoryCategory(category: string) {
       .toLowerCase()
       .trim() === "acessorios"
   );
+}
+
+export function productAvailableSizes(product: CatalogProduct) {
+  return product.sizes ?? (isAccessoryCategory(product.category) ? [] : ["P", "M", "G", "GG"]);
+}
+
+export function colorSupportsSize(product: CatalogProduct, color: string, size: string) {
+  const option = product.colors?.find((item) => item.name === color);
+  return Boolean(option && (!size || option.sizes === undefined || option.sizes.includes(size)));
+}
+
+export function isProductVariationAvailable(
+  product: CatalogProduct,
+  selection: Pick<OrderLine, "color" | "size">,
+) {
+  const sizes = productAvailableSizes(product);
+  const colors = product.colors ?? [];
+  if (sizes.length ? !selection.size || !sizes.includes(selection.size) : Boolean(selection.size)) {
+    return false;
+  }
+  if (colors.length === 0) return !selection.color;
+  if (!selection.color) return false;
+  return colorSupportsSize(product, selection.color, selection.size ?? "");
 }
 
 const catalogPriceFormatter = new Intl.NumberFormat("pt-BR", {

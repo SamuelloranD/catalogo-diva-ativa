@@ -11,8 +11,8 @@ const product: CatalogProduct = {
   color: "",
   images: ["/fit.jpg"],
   colors: [
-    { name: "Vinho", hex: "#6a2528" },
-    { name: "Preto", hex: "#111111" },
+    { name: "Vinho", hex: "#6a2528", sizes: ["P", "M"] },
+    { name: "Preto", hex: "#111111", sizes: ["G1", "G2"] },
   ],
   sizes: ["P", "M", "G1", "G2"],
   tag: "",
@@ -50,6 +50,32 @@ function addVariation(color: string, size: string) {
 }
 
 describe("Catalog variations", () => {
+  it("disables colors after a size is chosen and sizes after a color is chosen", () => {
+    render(<Catalog />);
+    fireEvent.click(screen.getByRole("button", { name: "Ver Macacão Teste" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "P" }));
+    const black = within(dialog).getByRole("button", { name: "Cor Preto indisponível" });
+    expect(black).toBeDisabled();
+    expect(black.querySelector(".catalog-color-swatch")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "P" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cor Preto" }));
+    expect(within(dialog).getByRole("button", { name: "P indisponível" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "G1" })).toBeEnabled();
+    expect(within(dialog).getByRole("button", { name: "Adicionar à sacola" })).toBeDisabled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "G1" }));
+    expect(within(dialog).getByRole("button", { name: "Adicionar à sacola" })).toBeEnabled();
+  });
+
+  it("shows catalog search below the product section title", () => {
+    render(<Catalog />);
+    const heading = screen.getByRole("heading", { name: "Encontre seu próximo look" });
+    const search = screen.getByRole("textbox", { name: "Buscar no catálogo" });
+    expect(heading.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.change(search, { target: { value: "Macacão Teste" } });
+    expect(screen.getAllByRole("article")).toHaveLength(1);
+  });
+
   it("shows round color swatches above their names and outlines only the selected swatch", () => {
     render(<Catalog />);
     fireEvent.click(screen.getByRole("button", { name: "Ver Macacão Teste" }));
@@ -110,6 +136,16 @@ describe("Catalog variations", () => {
     const bag = screen.getByRole("dialog");
     expect(within(bag).getByText("Cor: Vinho")).toBeInTheDocument();
     expect(within(bag).getByText("Cor: Preto")).toBeInTheDocument();
+    expect(
+      within(
+        within(bag).getAllByRole("combobox", { name: "Alterar tamanho de Macacão Teste" })[0]!,
+      ).getByRole("option", { name: "G1 (indisponível)" }),
+    ).toBeDisabled();
+    expect(
+      within(
+        within(bag).getAllByRole("combobox", { name: "Alterar cor de Macacão Teste" })[0]!,
+      ).getByRole("option", { name: "Preto (indisponível)" }),
+    ).toBeDisabled();
     expect(within(bag).getByText("R$ 298,60")).toBeInTheDocument();
     fireEvent.click(within(bag).getAllByRole("button", { name: "Aumentar Macacão Teste" })[0]!);
     expect(within(bag).getByText("R$ 447,90")).toBeInTheDocument();

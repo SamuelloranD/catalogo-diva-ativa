@@ -2,15 +2,40 @@ import { describe, expect, it } from "vitest";
 import {
   addOrderLine,
   appendCatalogPriceDigit,
+  colorSupportsSize,
   formatCatalogPrice,
   formatCatalogPriceInput,
   parseCatalogPrice,
+  isProductVariationAvailable,
   removeCatalogPriceDigit,
   replaceOrderLine,
   whatsappOrderText,
   whatsappOrderUrl,
 } from "./catalog";
 describe("Catalog orders", () => {
+  it("allows only configured color and size pairs while preserving legacy colors", () => {
+    const product = {
+      id: "set-1",
+      name: "Conjunto",
+      brand: "Diva Ativa",
+      category: "Conjuntos",
+      color: "",
+      images: [],
+      tag: "",
+      description: "",
+      sizes: ["P", "G"],
+      colors: [
+        { name: "Verde", sizes: ["P"] },
+        { name: "Rosa", sizes: ["G"] },
+      ],
+    };
+    expect(colorSupportsSize(product, "Verde", "P")).toBe(true);
+    expect(colorSupportsSize(product, "Rosa", "P")).toBe(false);
+    expect(isProductVariationAvailable(product, { color: "Verde", size: "G" })).toBe(false);
+    expect(isProductVariationAvailable(product, { color: "Rosa", size: "G" })).toBe(true);
+    expect(colorSupportsSize({ ...product, colors: [{ name: "Verde" }] }, "Verde", "G")).toBe(true);
+  });
+
   it("formats a product price as Brazilian currency with two decimal places", () => {
     expect(formatCatalogPrice(129.9)).toBe("R$ 129,90");
   });
