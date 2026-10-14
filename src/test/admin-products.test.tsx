@@ -553,6 +553,49 @@ describe("Admin product controls", () => {
     expect(within(pages).queryByRole("button", { name: "Página 1" })).not.toBeInTheDocument();
   });
 
+  it("shows as many product rows as fit on a desktop viewport and adjusts on resize", async () => {
+    const products = Array.from({ length: 30 }, (_, index) => ({
+      ...product,
+      id: `product-${index + 1}`,
+      name: `Peça ${index + 1}`,
+    }));
+    const originalWidth = window.innerWidth;
+    const originalHeight = window.innerHeight;
+    const rectSpy = vi
+      .spyOn(HTMLTableSectionElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({ bottom: 300 } as DOMRect);
+
+    try {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 1200 });
+      render(<ProductTable products={products} mode="all" />);
+
+      await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(13));
+      fireEvent.click(screen.getByRole("button", { name: "Página 2" }));
+      expect(screen.getByRole("row", { name: /Peça 13/ })).toBeInTheDocument();
+
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+      fireEvent(window, new Event("resize"));
+
+      await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(7));
+      expect(screen.getByRole("row", { name: /Peça 13/ })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Página 3" })).toHaveAttribute(
+        "aria-current",
+        "page",
+      );
+
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: 1200 });
+      fireEvent(window, new Event("resize"));
+
+      expect(screen.getAllByRole("row")).toHaveLength(7);
+    } finally {
+      rectSpy.mockRestore();
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: originalHeight });
+    }
+  });
+
   it("archives selected active products after confirmation", async () => {
     const onArchive = vi.fn().mockResolvedValue(undefined);
     render(<ProductTable products={[product]} mode="all" onArchive={onArchive} />);

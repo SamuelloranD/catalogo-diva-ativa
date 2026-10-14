@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ChevronLeft,
@@ -34,7 +34,9 @@ type ProductTableProps = {
   onDelete?: (product: CatalogProduct) => Promise<void>;
 };
 
-const PAGE_SIZE = 6;
+const MOBILE_PAGE_SIZE = 6;
+const ROW_HEIGHT = 66;
+const FOOTER_SPACE = 96;
 
 function formatPrice(price?: number) {
   return price == null
@@ -56,6 +58,9 @@ export function ProductTable({
   const [status, setStatus] = useState("all");
   const [sort, setSort] = useState("recent");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(MOBILE_PAGE_SIZE);
+  const pageSizeRef = useRef(MOBILE_PAGE_SIZE);
+  const tableHeadRef = useRef<HTMLTableSectionElement>(null);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   const [bulkError, setBulkError] = useState("");
@@ -80,16 +85,41 @@ export function ProductTable({
     return rows;
   }, [products, search, categoryId, status, sort]);
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const visiblePageCount = Math.min(3, pageCount);
   const firstVisiblePage = Math.max(1, Math.min(currentPage - 1, pageCount - visiblePageCount + 1));
-  const pageRows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectableRows = pageRows.filter((product) => product.active !== false);
   const selectedProducts = products.filter(
     (product) => selected.has(product.id) && product.active !== false,
   );
   useEffect(() => setPage(1), [search, categoryId, status, sort]);
+  useEffect(() => {
+    function updatePageSize() {
+      const headerBottom = tableHeadRef.current?.getBoundingClientRect().bottom ?? 0;
+      const nextPageSize =
+        window.innerWidth < 1024 || headerBottom <= 0
+          ? MOBILE_PAGE_SIZE
+          : Math.max(
+              3,
+              Math.min(
+                24,
+                Math.floor((window.innerHeight - headerBottom - FOOTER_SPACE) / ROW_HEIGHT),
+              ),
+            );
+
+      if (nextPageSize === pageSizeRef.current) return;
+      const previousPageSize = pageSizeRef.current;
+      setPage((current) => Math.floor(((current - 1) * previousPageSize) / nextPageSize) + 1);
+      pageSizeRef.current = nextPageSize;
+      setPageSize(nextPageSize);
+    }
+
+    updatePageSize();
+    window.addEventListener("resize", updatePageSize);
+    return () => window.removeEventListener("resize", updatePageSize);
+  }, []);
 
   function toggleSelected(id: string) {
     setSelected((current) => {
@@ -234,7 +264,7 @@ export function ProductTable({
       )}
       <div className="overflow-x-auto rounded-lg border">
         <table className="admin-products-table w-full text-left text-sm md:min-w-[720px]">
-          <thead className="bg-muted/60 text-xs text-muted-foreground">
+          <thead ref={tableHeadRef} className="bg-muted/60 text-xs text-muted-foreground">
             <tr>
               {onArchive && (
                 <th className="w-10 px-3 py-3 font-semibold">
