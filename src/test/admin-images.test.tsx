@@ -2,7 +2,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { ProductImageUploader } from "@/components/admin/product-image-uploader";
+import {
+  ProductImageUploader,
+  type ProductImageItem,
+} from "@/components/admin/product-image-uploader";
 import type { CatalogImage } from "@/lib/catalog-types";
 
 const image: CatalogImage = {
@@ -16,7 +19,7 @@ const image: CatalogImage = {
 
 describe("Product image uploader", () => {
   function ImageUploaderHarness() {
-    const [items, setItems] = useState([{ kind: "existing" as const, image }]);
+    const [items, setItems] = useState<ProductImageItem[]>([{ kind: "existing", image }]);
 
     return <ProductImageUploader items={items} onItemsChange={setItems} />;
   }
@@ -37,6 +40,18 @@ describe("Product image uploader", () => {
       { kind: "existing", image },
       expect.objectContaining({ kind: "new", file }),
     ]);
+  });
+
+  it("accepts photos dropped onto the upload area", () => {
+    const onItemsChange = vi.fn();
+    const file = new File(["image"], "arrastada.jpg", { type: "image/jpeg" });
+    render(<ProductImageUploader items={[]} onItemsChange={onItemsChange} />);
+
+    fireEvent.drop(screen.getByLabelText("Área de upload de fotos"), {
+      dataTransfer: { files: [file] },
+    });
+
+    expect(onItemsChange).toHaveBeenCalledWith([expect.objectContaining({ kind: "new", file })]);
   });
 
   it("previews a new image and lets the admin move it with existing images", () => {

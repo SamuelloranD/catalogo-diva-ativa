@@ -31,7 +31,7 @@ export { isSupabaseConfigured, slugify };
 export async function listCategories(): Promise<CatalogCategory[]> {
   const { data, error } = await getClient()
     .from("categories")
-    .select("id,name,slug,active,sort_order")
+    .select("id,name,slug,active,sort_order,created_at")
     .eq("active", true)
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
@@ -43,6 +43,7 @@ export async function listCategories(): Promise<CatalogCategory[]> {
     slug: category.slug,
     active: category.active,
     sortOrder: category.sort_order,
+    createdAt: category.created_at,
   }));
 }
 
@@ -50,29 +51,54 @@ export async function listProducts({ active = true }: { active?: boolean } = {})
   CatalogProduct[]
 > {
   const client = getClient();
+  const productRequest = async () => {
+    const current = await client
+      .from("products")
+      .select(
+        "id,name,category_id,brand,description,color_label,tag,price,active,sort_order,created_at,sizes,colors",
+      )
+      .eq("active", active)
+      .order("sort_order", { ascending: true });
+    if (!current.error) return current.data;
+    if (!["42703", "PGRST204"].includes(current.error.code)) throw current.error;
+    const legacy = await client
+      .from("products")
+      .select(
+        "id,name,category_id,brand,description,color_label,tag,price,active,sort_order,created_at",
+      )
+      .eq("active", active)
+      .order("sort_order", { ascending: true });
+    if (legacy.error) throw legacy.error;
+    return legacy.data.map((product) => ({ ...product, sizes: null, colors: null }));
+  };
   const [
-    { data: productRows, error: productError },
+    productRows,
     { data: categoryRows, error: categoryError },
     { data: imageRows, error: imageError },
+    { data: relationRows, error: relationError },
   ] = await Promise.all([
-    client
-      .from("products")
-      .select("id,name,category_id,brand,description,color_label,tag,price,active,sort_order")
-      .eq("active", active)
-      .order("sort_order", { ascending: true }),
+    productRequest(),
     client.from("categories").select("id,name").eq("active", true),
     client
       .from("product_images")
       .select("id,product_id,storage_path,position,alt_text")
       .order("position", { ascending: true }),
+    client.from("product_categories").select("product_id,category_id"),
   ]);
 
-  if (productError) throw productError;
   if (categoryError) throw categoryError;
   if (imageError) throw imageError;
+  if (relationError && !["42P01", "PGRST205"].includes(relationError.code)) throw relationError;
 
   const categories = new Map(categoryRows.map((category) => [category.id, category.name]));
   const imagesByProduct = new Map<string, CatalogImage[]>();
+  const categoryIdsByProduct = new Map<string, string[]>();
+  for (const relation of relationRows ?? []) {
+    categoryIdsByProduct.set(relation.product_id, [
+      ...(categoryIdsByProduct.get(relation.product_id) ?? []),
+      relation.category_id,
+    ]);
+  }
 
   for (const image of imageRows) {
     const mapped: CatalogImage = {
@@ -95,14 +121,23 @@ export async function listProducts({ active = true }: { active?: boolean } = {})
     brand: product.brand,
     category: categories.get(product.category_id) ?? "Sem categoria",
     categoryId: product.category_id,
+    categoryIds: [
+      ...new Set([product.category_id, ...(categoryIdsByProduct.get(product.id) ?? [])]),
+    ],
+    categories: [...new Set([product.category_id, ...(categoryIdsByProduct.get(product.id) ?? [])])]
+      .map((id) => categories.get(id))
+      .filter((name): name is string => Boolean(name)),
     color: product.color_label,
+    colors: Array.isArray(product.colors) ? product.colors : [],
+    ...(Array.isArray(product.sizes) ? { sizes: product.sizes } : {}),
     images: (imagesByProduct.get(product.id) ?? []).map((image) => image.url),
     imageRecords: imagesByProduct.get(product.id) ?? [],
     tag: product.tag,
     description: product.description,
-    price: product.price == null ? undefined : Number(product.price),
+    ...(product.price == null ? {} : { price: Number(product.price) }),
     active: product.active,
     sortOrder: product.sort_order,
+    createdAt: product.created_at,
   }));
 }
 
@@ -159,12 +194,29 @@ export async function createProduct(input: ProductInput): Promise<string> {
       price: input.price ?? null,
       active: input.active ?? true,
       sort_order: input.sortOrder ?? 0,
+      sizes: input.sizes ?? null,
+      colors: input.colors ?? [],
     })
     .select("id")
     .single();
 
   if (error) throw error;
+  await saveProductCategories(data.id, input);
   return data.id;
+}
+
+async function saveProductCategories(id: string, input: ProductInput) {
+  const client = getClient();
+  const ids = [...new Set([input.categoryId, ...(input.categoryIds ?? [])])];
+  const { error: deleteError } = await client
+    .from("product_categories")
+    .delete()
+    .eq("product_id", id);
+  if (deleteError) throw deleteError;
+  const { error } = await client
+    .from("product_categories")
+    .insert(ids.map((categoryId) => ({ product_id: id, category_id: categoryId })));
+  if (error) throw error;
 }
 
 export async function updateProduct(id: string, input: ProductInput) {
@@ -180,10 +232,13 @@ export async function updateProduct(id: string, input: ProductInput) {
       price: input.price ?? null,
       active: input.active ?? true,
       sort_order: input.sortOrder ?? 0,
+      sizes: input.sizes ?? null,
+      colors: input.colors ?? [],
     })
     .eq("id", id);
 
   if (error) throw error;
+  await saveProductCategories(id, input);
 }
 
 export async function archiveProduct(id: string) {

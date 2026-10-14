@@ -158,25 +158,27 @@ export function Admin() {
 
   return (
     <>
-      <SiteNavbar
-        variant="admin"
-        leadingAction={
-          <Button
-            asChild
-            variant="navbar"
-            size="navbarIconLarge"
-            className="site-navbar-admin-back-action md:h-10 md:w-auto md:px-4 md:[&_svg]:size-4"
-            title="Voltar ao catálogo"
-          >
-            <a href="/" aria-label="Voltar ao catálogo">
-              <CircleArrowLeft className="md:hidden" />
-              <span className="hidden md:inline">Voltar ao catálogo</span>
-            </a>
-          </Button>
-        }
-      />
-      <main className="min-h-screen bg-secondary/30 py-12">
-        <div className="mx-auto max-w-[1440px] px-6 lg:px-14">
+      {!session && (
+        <SiteNavbar
+          variant="admin"
+          leadingAction={
+            <Button
+              asChild
+              variant="navbar"
+              size="navbarIconLarge"
+              className="site-navbar-admin-back-action md:h-10 md:w-auto md:px-4 md:[&_svg]:size-4"
+              title="Voltar ao catálogo"
+            >
+              <a href="/" aria-label="Voltar ao catálogo">
+                <CircleArrowLeft className="md:hidden" />
+                <span className="hidden md:inline">Voltar ao catálogo</span>
+              </a>
+            </Button>
+          }
+        />
+      )}
+      <main className={session ? "min-h-screen" : "min-h-screen bg-secondary/30 py-12"}>
+        <div className={session ? "" : "mx-auto max-w-[1440px] px-6 lg:px-14"}>
           <h1 className="sr-only">Administração do catálogo</h1>
           {!isSupabaseConfigured() ? (
             <div className="mx-auto max-w-xl rounded-2xl border bg-background p-8 text-center shadow-sm">

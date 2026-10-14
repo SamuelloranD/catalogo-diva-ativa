@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Crop, Trash2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Crop, ImagePlus, Trash2 } from "lucide-react";
 
 import { ProductImageEditor } from "@/components/admin/product-image-editor";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ type ProductImageUploaderProps = {
 
 export function ProductImageUploader({ items, onItemsChange }: ProductImageUploaderProps) {
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
   const [editingImage, setEditingImage] = useState<{
     key: string;
     label: string;
@@ -69,7 +70,7 @@ export function ProductImageUploader({ items, onItemsChange }: ProductImageUploa
     if (nextIndex < 0 || nextIndex >= items.length) return;
 
     const nextItems = [...items];
-    [nextItems[index], nextItems[nextIndex]] = [nextItems[nextIndex], nextItems[index]];
+    [nextItems[index], nextItems[nextIndex]] = [nextItems[nextIndex]!, nextItems[index]!];
     onItemsChange(nextItems);
   }
 
@@ -93,11 +94,32 @@ export function ProductImageUploader({ items, onItemsChange }: ProductImageUploa
 
   return (
     <div className="grid gap-3">
-      <div className="grid gap-2 text-sm font-medium">
-        <span>Adicionar fotos</span>
-        <Button asChild type="button" variant="outline" className="w-fit">
-          <label htmlFor={fileInputId}>Escolher arquivos</label>
-        </Button>
+      <div
+        role="group"
+        aria-label="Área de upload de fotos"
+        className={`rounded-lg border border-dashed p-5 text-center transition-colors ${dragging ? "border-primary bg-secondary" : "bg-muted/30"}`}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(event) => {
+          event.preventDefault();
+          setDragging(false);
+          handleFilesChange(Array.from(event.dataTransfer.files));
+        }}
+      >
+        <ImagePlus className="mx-auto mb-2 size-6 text-primary" aria-hidden="true" />
+        <p className="text-xs font-medium">Arraste suas fotos aqui ou clique para selecionar</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          PNG, JPG, WEBP, AVIF. Até 6 MB por imagem.
+        </p>
+        <label
+          htmlFor={fileInputId}
+          className="mt-3 inline-flex cursor-pointer rounded-md border bg-background px-3 py-1.5 text-xs font-medium hover:bg-secondary"
+        >
+          Escolher arquivos
+        </label>
         <Input
           id={fileInputId}
           aria-label="Adicionar fotos"

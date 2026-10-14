@@ -49,35 +49,24 @@ function renderAdminShell() {
 }
 
 describe("Admin product controls", () => {
-  it("opens the new product form in a modal", () => {
+  it("opens the new product form as a dedicated admin view", () => {
     renderAdminShell();
 
     fireEvent.click(screen.getByRole("button", { name: "Novo produto" }));
 
-    const dialog = screen.getByRole("dialog");
-    const closeButton = screen.getByRole("button", { name: "Fechar modal" });
-
-    expect(dialog).toHaveTextContent("Novo produto");
-    expect(screen.getByRole("dialog")).toHaveTextContent("Preencha os dados exibidos no catálogo.");
-    expect(dialog).toHaveClass("rounded-2xl", "bg-background", "overflow-hidden");
-    expect(dialog).not.toHaveClass("overflow-y-auto");
-    expect(dialog.querySelector(".admin-product-modal-scroll")).toHaveClass(
-      "overflow-x-hidden",
-      "overflow-y-auto",
-    );
-    expect(dialog.querySelector("form")).toContainElement(closeButton);
-    expect(dialog.querySelector("form")).not.toHaveClass("rounded-2xl", "border");
-    expect(closeButton).toHaveClass("h-9", "w-9", "bg-destructive");
-    expect(document.querySelector(".backdrop-blur-sm")).toHaveClass("bg-overlay/80");
+    expect(screen.getByRole("heading", { name: "Novo produto" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Voltar para produtos" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Informações gerais" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("opens the edit product form in a modal", () => {
+  it("opens product editing in the dedicated view", () => {
     renderAdminShell();
 
     fireEvent.click(screen.getByRole("button", { name: "Editar Conjunto Aurora" }));
 
-    expect(screen.getByRole("dialog")).toHaveTextContent("Editar produto");
-    expect(screen.getByRole("dialog")).toHaveTextContent("Descrição do conjunto.");
+    expect(screen.getByRole("heading", { name: "Editar produto" })).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Descrição do conjunto.")).toBeInTheDocument();
   });
 
   it("confirms before discarding a filled new product", () => {
@@ -87,11 +76,10 @@ describe("Admin product controls", () => {
     fireEvent.change(screen.getByLabelText("Nome da peça"), {
       target: { value: "Jade Premium" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Fechar modal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Voltar para produtos" }));
 
     const confirmation = screen.getByRole("alertdialog");
 
-    expect(confirmation).toHaveClass("w-[calc(100%-2rem)]", "rounded-2xl", "overflow-x-hidden");
     expect(confirmation).toHaveTextContent("Descartar alterações?");
     expect(confirmation).toHaveTextContent("Os campos preenchidos serão perdidos.");
   });
@@ -103,7 +91,7 @@ describe("Admin product controls", () => {
     fireEvent.change(screen.getByLabelText("Nome da peça"), {
       target: { value: "Jade Premium" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Fechar modal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Voltar para produtos" }));
 
     expect(screen.getByRole("alertdialog")).toHaveTextContent("Descartar alterações?");
     expect(screen.getByRole("alertdialog")).toHaveTextContent(
@@ -111,14 +99,90 @@ describe("Admin product controls", () => {
     );
   });
 
+  it("confirms before replacing an edited product with a new one", () => {
+    renderAdminShell();
+    fireEvent.click(screen.getByRole("button", { name: "Editar Conjunto Aurora" }));
+    fireEvent.change(screen.getByLabelText("Nome da peça"), {
+      target: { value: "Conjunto alterado" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar produto" }));
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Descartar alterações?");
+    fireEvent.click(screen.getByRole("button", { name: "Descartar" }));
+    expect(screen.getByRole("heading", { name: "Novo produto" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Nome da peça")).toHaveValue("");
+  });
+
+  it("switches between product and category management", () => {
+    renderAdminShell();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Categorias$/ }));
+    expect(screen.getByRole("heading", { name: "Categorias" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nova categoria" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Produtos" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /^Produtos$/ }));
+    expect(screen.getByRole("heading", { name: "Produtos" })).toBeInTheDocument();
+  });
+
   it("submits a new category", () => {
     const onCreate = vi.fn().mockResolvedValue(undefined);
     render(<CategoryManager categories={[category]} onCreate={onCreate} />);
 
+    fireEvent.click(screen.getByRole("button", { name: "Nova categoria" }));
     fireEvent.change(screen.getByLabelText("Nova categoria"), { target: { value: "Saias" } });
     fireEvent.click(screen.getByRole("button", { name: "Adicionar categoria" }));
 
     expect(onCreate).toHaveBeenCalledWith("Saias");
+  });
+
+  it("filters categories by name and shows linked product counts", () => {
+    const secondCategory = { ...category, id: "running", name: "Corrida", slug: "corrida" };
+    render(
+      <CategoryManager
+        categories={[category, secondCategory]}
+        products={[product]}
+        onCreate={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("1 produto")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Buscar categorias" }), {
+      target: { value: "corrida" },
+    });
+    expect(screen.getByText("Corrida")).toBeInTheDocument();
+    expect(screen.queryByText("Conjuntos")).not.toBeInTheDocument();
+  });
+
+  it("shows category creation dates and sorts products by actual creation time", () => {
+    const older = {
+      ...product,
+      id: "older",
+      name: "Peça antiga",
+      createdAt: "2026-10-01T12:00:00Z",
+    };
+    const newer = {
+      ...product,
+      id: "newer",
+      name: "Peça recente",
+      createdAt: "2026-10-13T12:00:00Z",
+    };
+    const { unmount } = render(<ProductTable products={[older, newer]} />);
+    expect(
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((row) => row.textContent),
+    ).toEqual([expect.stringContaining("Peça recente"), expect.stringContaining("Peça antiga")]);
+    unmount();
+
+    render(
+      <CategoryManager
+        categories={[{ ...category, createdAt: "2026-10-13T12:00:00Z" }]}
+        onCreate={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("13/10/2026")).toBeInTheDocument();
   });
 
   it("edits a category from the category list", async () => {
@@ -158,7 +222,7 @@ describe("Admin product controls", () => {
     expect(screen.getByRole("alertdialog")).toHaveTextContent(
       "A categoria “Conjuntos” será removida.",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Excluir", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /^Excluir$/ }));
 
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(category));
   });
@@ -175,7 +239,7 @@ describe("Admin product controls", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Excluir Conjuntos" }));
-    fireEvent.click(screen.getByRole("button", { name: "Excluir", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /^Excluir$/ }));
 
     expect(screen.getByRole("alertdialog")).toHaveTextContent(
       "Tem certeza que deseja excluir a categoria Conjuntos?",
@@ -185,7 +249,7 @@ describe("Admin product controls", () => {
     );
     expect(onDelete).not.toHaveBeenCalled();
 
-    fireEvent.click(screen.getByRole("button", { name: "Excluir", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /^Excluir$/ }));
 
     await waitFor(() => expect(onDelete).toHaveBeenCalledWith(category));
   });
@@ -203,7 +267,7 @@ describe("Admin product controls", () => {
     }
     expect(screen.getByRole("button", { name: "Selecione a categoria" })).toHaveClass(
       "catalog-dropdown-trigger-compact",
-      "sm:w-64",
+      "w-full",
     );
     fireEvent.keyDown(screen.getByRole("button", { name: "Selecione a categoria" }), {
       key: "ArrowDown",
@@ -246,6 +310,68 @@ describe("Admin product controls", () => {
     expect(priceInput).toHaveValue("0,12");
   });
 
+  it("saves secondary categories, individual sizes and optional colors", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const runningCategory = { ...category, id: "running", name: "Corrida", slug: "corrida" };
+    render(
+      <ProductForm categories={[category, runningCategory]} onSave={onSave} onCancel={vi.fn()} />,
+    );
+    fireEvent.change(screen.getByLabelText("Nome da peça"), {
+      target: { value: "Conjunto Corrida" },
+    });
+    fireEvent.keyDown(screen.getByRole("button", { name: "Selecione a categoria" }), {
+      key: "ArrowDown",
+    });
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Conjuntos" }));
+    fireEvent.click(screen.getByLabelText("Corrida"));
+    expect(screen.getByLabelText("G1")).toBeChecked();
+    expect(screen.getByLabelText("G2")).toBeChecked();
+    expect(screen.getByLabelText("GG")).not.toBeChecked();
+    fireEvent.click(screen.getByLabelText("P"));
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar cor/ }));
+    fireEvent.change(screen.getByLabelText("Nome da cor 1"), { target: { value: "Vinho" } });
+    fireEvent.click(screen.getByRole("button", { name: "Salvar produto" }));
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          categoryIds: [category.id, runningCategory.id],
+          sizes: ["M", "G", "G1", "G2"],
+          colors: [{ name: "Vinho" }],
+        }),
+        expect.any(Array),
+        expect.any(Array),
+        expect.any(Array),
+      ),
+    );
+  });
+
+  it("lets mobile editors switch between general details, variations and photos", () => {
+    render(<ProductForm categories={[category]} onSave={vi.fn()} onCancel={vi.fn()} />);
+    const variations = screen.getByRole("button", { name: "Variações" });
+    const photos = screen.getByRole("button", { name: "Fotos" });
+
+    fireEvent.click(variations);
+    expect(variations).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("heading", { name: "Tamanhos disponíveis" })).toBeInTheDocument();
+    fireEvent.click(photos);
+    expect(photos).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("heading", { name: "Fotos do produto" })).toBeInTheDocument();
+  });
+
+  it("explains a missing Supabase schema column when saving a product", async () => {
+    const onSave = vi.fn().mockRejectedValue({
+      code: "PGRST204",
+      message: "Could not find the 'sizes' column of 'products' in the schema cache",
+    });
+    render(
+      <ProductForm product={product} categories={[category]} onSave={onSave} onCancel={vi.fn()} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("20261014_product_variations.sql");
+  });
+
   it("uses a custom photo picker without the native filename text", () => {
     render(<ProductForm categories={[category]} onSave={vi.fn()} onCancel={vi.fn()} />);
 
@@ -282,7 +408,7 @@ describe("Admin product controls", () => {
     fireEvent.click(screen.getByRole("button", { name: "Editar Conjunto Aurora" }));
     const archiveButton = screen.getByRole("button", { name: "Arquivar Conjunto Aurora" });
 
-    expect(archiveButton).toHaveClass("bg-destructive/10");
+    expect(archiveButton).toHaveClass("text-muted-foreground");
     fireEvent.click(archiveButton);
 
     expect(screen.getByRole("alertdialog")).toHaveTextContent("Conjunto Aurora");
@@ -302,9 +428,43 @@ describe("Admin product controls", () => {
   it("renders all product table headers in bold", () => {
     render(<ProductTable products={[product]} onEdit={vi.fn()} onArchive={vi.fn()} />);
 
-    for (const header of ["Produto", "Categoria", "Imagens", "Ações"]) {
+    for (const header of ["Produto", "Categorias", "Preço", "Status", "Ações"]) {
       expect(screen.getByRole("columnheader", { name: header })).toHaveClass("font-semibold");
     }
+  });
+
+  it("filters, paginates and includes archived products in the dashboard", () => {
+    const products = Array.from({ length: 7 }, (_, index) => ({
+      ...product,
+      id: `product-${index}`,
+      name: `Peça ${index + 1}`,
+      active: index !== 6,
+      createdAt: `2026-10-${String(index + 1).padStart(2, "0")}T12:00:00Z`,
+    }));
+    render(<ProductTable products={products} categories={[category]} mode="all" />);
+
+    expect(screen.getAllByRole("row")).toHaveLength(7);
+    fireEvent.click(screen.getByRole("button", { name: "Próxima página" }));
+    expect(screen.getByText("Peça 1")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Buscar produtos" }), {
+      target: { value: "Peça 7" },
+    });
+    expect(screen.getByText("Peça 7")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Filtrar por status"), {
+      target: { value: "active" },
+    });
+    expect(screen.getByText("Nenhum produto encontrado para estes filtros.")).toBeInTheDocument();
+  });
+
+  it("archives selected active products after confirmation", async () => {
+    const onArchive = vi.fn().mockResolvedValue(undefined);
+    render(<ProductTable products={[product]} mode="all" onArchive={onArchive} />);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Selecionar Conjunto Aurora" }));
+    fireEvent.click(screen.getByRole("button", { name: "Arquivar selecionados" }));
+    expect(onArchive).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Confirmar arquivamento em lote" }));
+    await waitFor(() => expect(onArchive).toHaveBeenCalledWith(product));
   });
 
   it("shows archived products with a reactivation action", () => {
@@ -339,7 +499,7 @@ describe("Admin product controls", () => {
     expect(onDelete).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Excluir Conjunto Aurora" }));
-    fireEvent.click(screen.getByRole("button", { name: "Excluir", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: /^Excluir$/ }));
 
     expect(onDelete).toHaveBeenCalledWith(archivedProduct);
   });

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import type { CatalogCategory, CatalogProduct } from "@/lib/catalog-types";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Plus, Search, Trash2 } from "lucide-react";
 
 type CategoryManagerProps = {
   categories: CatalogCategory[];
@@ -37,6 +37,11 @@ export function CategoryManager({
   const [pendingDelete, setPendingDelete] = useState<CatalogCategory>();
   const [deleteStage, setDeleteStage] = useState<"initial" | "linked">("initial");
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const visibleCategories = categories.filter((category) =>
+    category.name.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR")),
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,6 +51,7 @@ export function CategoryManager({
       await onCreate(name.trim());
       setName("");
       setError("");
+      setShowCreate(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Não foi possível criar a categoria.");
     }
@@ -119,34 +125,63 @@ export function CategoryManager({
   }
 
   return (
-    <section className="grid gap-4 rounded-2xl border bg-background p-5">
-      <div>
-        <h3 className="font-medium">Categorias</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Adicione e organize as categorias usadas nos produtos.
-        </p>
+    <section className="admin-panel grid gap-5 rounded-xl border bg-background p-4 shadow-sm sm:p-7">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-3xl sm:text-4xl">Categorias</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Organize as categorias utilizadas no catálogo.
+          </p>
+        </div>
+        <Button type="button" onClick={() => setShowCreate((open) => !open)}>
+          <Plus /> Nova categoria
+        </Button>
       </div>
-      <form className="flex flex-wrap gap-2" onSubmit={handleSubmit}>
+      {showCreate && (
+        <form
+          className="flex flex-wrap gap-2 rounded-lg border bg-muted/30 p-3"
+          onSubmit={handleSubmit}
+        >
+          <Input
+            aria-label="Nova categoria"
+            className="min-w-52 flex-1"
+            placeholder="Ex.: Saias"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+          <Button type="submit">Adicionar categoria</Button>
+        </form>
+      )}
+      <label className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
-          aria-label="Nova categoria"
-          className="min-w-52 flex-1"
-          placeholder="Ex.: Saias"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
+          aria-label="Buscar categorias"
+          placeholder="Buscar categorias..."
+          className="pl-9"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
         />
-        <Button type="submit">Adicionar categoria</Button>
-      </form>
+      </label>
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
-      <div className="divide-y rounded-xl border">
-        {categories.length > 0 ? (
-          categories.map((category) => (
-            <div key={category.id} className="flex items-center justify-between gap-3 px-3 py-2">
+      <div className="divide-y overflow-hidden rounded-lg border">
+        <div className="grid grid-cols-[minmax(0,1fr)_70px_86px] bg-muted/60 px-3 py-3 text-xs font-semibold text-muted-foreground sm:grid-cols-[minmax(0,1fr)_95px_130px_130px]">
+          <span>Nome da categoria</span>
+          <span>Produtos</span>
+          <span className="hidden sm:block">Data de criação</span>
+          <span className="text-right">Ações</span>
+        </div>
+        {visibleCategories.length > 0 ? (
+          visibleCategories.map((category) => (
+            <div
+              key={category.id}
+              className="grid grid-cols-[minmax(0,1fr)_70px_86px] items-center gap-1 px-3 py-2 sm:grid-cols-[minmax(0,1fr)_95px_130px_130px]"
+            >
               {editingCategoryId === category.id ? (
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                <div className="col-span-3 flex min-w-0 flex-1 flex-wrap items-center gap-2 sm:col-span-4">
                   <Input
                     aria-label={`Editar categoria ${category.name}`}
                     className="h-8 min-w-48 flex-1"
@@ -168,17 +203,37 @@ export function CategoryManager({
               ) : (
                 <>
                   <span className="min-w-0 truncate text-sm font-medium">{category.name}</span>
-                  <div className="flex shrink-0 items-center gap-1">
+                  <span className="text-xs text-muted-foreground">
+                    {
+                      products.filter((product) =>
+                        (product.categoryIds ?? [product.categoryId]).includes(category.id),
+                      ).length
+                    }{" "}
+                    {products.filter((product) =>
+                      (product.categoryIds ?? [product.categoryId]).includes(category.id),
+                    ).length === 1
+                      ? "produto"
+                      : "produtos"}
+                  </span>
+                  <span className="hidden text-xs text-muted-foreground sm:block">
+                    {category.createdAt
+                      ? new Date(category.createdAt).toLocaleDateString("pt-BR", {
+                          timeZone: "UTC",
+                        })
+                      : "—"}
+                  </span>
+                  <div className="flex shrink-0 items-center justify-end gap-1">
                     {onUpdate && (
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        variant="outline"
+                        size="sm"
+                        className="text-muted-foreground hover:text-foreground"
                         aria-label={`Editar ${category.name}`}
                         onClick={() => startEditing(category)}
                       >
                         <Pencil aria-hidden="true" />
+                        <span className="hidden sm:inline">Editar</span>
                       </Button>
                     )}
                     {onDelete && (
@@ -230,7 +285,9 @@ export function CategoryManager({
             </div>
           ))
         ) : (
-          <p className="px-3 py-4 text-sm text-muted-foreground">Nenhuma categoria cadastrada.</p>
+          <p className="px-3 py-6 text-sm text-muted-foreground">
+            {categories.length ? "Nenhuma categoria encontrada." : "Nenhuma categoria cadastrada."}
+          </p>
         )}
       </div>
     </section>

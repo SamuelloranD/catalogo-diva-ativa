@@ -33,10 +33,16 @@
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.28 0.025 130);
-  --sage: oklch(0.645 0.059 130);
+  --sage: oklch(0.48 0.045 130);
   --announcement: oklch(0.95 0.025 85);
-  --primary: oklch(0.49 0.06 130);
+  --primary: oklch(0.44 0.05 130);
   --primary-foreground: oklch(1 0 0);
+  --navbar-slogan: #f3ebdd;
+  --swatch-selection: #111111;
+  --admin-canvas: oklch(0.955 0.012 115);
+  --admin-sidebar: oklch(0.94 0.016 125);
+  --admin-chip: oklch(0.953 0.006 130);
+  --admin-success: oklch(0.91 0.025 145);
   --destructive: oklch(0.58 0.16 28);
   --destructive-foreground: oklch(1 0 0);
   --secondary: oklch(0.96 0.016 130);
@@ -57,6 +63,42 @@
   border-color: var(--primary);
   background: var(--secondary);
   color: var(--foreground);
+}
+.catalog-size-option {
+  position: relative;
+  overflow: hidden;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.catalog-color-swatch {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+.catalog-color-option[aria-pressed="true"] .catalog-color-swatch {
+  box-shadow:
+    0 0 0 2px var(--background),
+    0 0 0 4px var(--swatch-selection);
+}
+.catalog-size-option:disabled {
+  opacity: 1;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+.catalog-size-option:disabled::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 140%;
+  height: 1px;
+  background: var(--border);
+  transform: translate(-50%, -50%) rotate(45deg);
+  pointer-events: none;
 }
 .catalog-dropdown-trigger-compact {
   border-radius: var(--radius-md);
@@ -105,6 +147,119 @@
   font-size: 38px;
   line-height: 1;
 }
+.navbar-slogan {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: 22px;
+  color: var(--navbar-slogan);
+}
+.admin-layout {
+  background: var(--admin-canvas);
+}
+.admin-sidebar {
+  background: var(--admin-sidebar);
+}
+.admin-nav-active {
+  background: color-mix(in oklch, var(--primary) 12%, var(--admin-sidebar));
+  color: var(--foreground);
+  font-weight: 600;
+}
+.admin-nav-active:hover {
+  background: color-mix(in oklch, var(--primary) 18%, var(--admin-sidebar));
+}
+.admin-panel {
+  box-shadow: 0 16px 36px oklch(0.28 0.025 130 / 5%);
+}
+.admin-editor-card {
+  background: var(--background);
+}
+.admin-select {
+  height: 36px;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--background);
+  padding: 0 0.75rem;
+  color: var(--foreground);
+  font-size: 0.75rem;
+}
+.admin-select:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.admin-category-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-md);
+  background: var(--admin-chip);
+  padding: 0.25rem 0.5rem;
+  color: var(--foreground);
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+.admin-status {
+  display: inline-flex;
+  border-radius: 999px;
+  background: var(--admin-success);
+  padding: 0.25rem 0.65rem;
+  color: var(--primary);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.admin-status-archived {
+  background: var(--admin-chip);
+  color: var(--muted-foreground);
+}
+.admin-choice-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.75rem;
+}
+.admin-choice-chip:has(input:checked) {
+  border-color: var(--primary);
+  background: var(--secondary);
+}
+@media (max-width: 767px) {
+  .admin-products-table,
+  .admin-products-table tbody,
+  .admin-products-table tr,
+  .admin-products-table td {
+    display: block;
+    width: 100%;
+  }
+  .admin-products-table thead {
+    display: none;
+  }
+  .admin-products-table tr {
+    padding: 0.5rem 0;
+  }
+  .admin-products-table tr:has(> td:first-child input[type="checkbox"]) {
+    position: relative;
+    padding-left: 1.8rem;
+  }
+  .admin-products-table tr > td:first-child:has(input[type="checkbox"]) {
+    position: absolute;
+    top: 0.8rem;
+    left: 0.15rem;
+    width: auto;
+  }
+  .admin-products-table td {
+    padding: 0.3rem 0.8rem;
+  }
+  .admin-products-table td:last-child > div {
+    justify-content: flex-start;
+  }
+  .admin-products-table td.admin-price-cell,
+  .admin-products-table td.admin-status-cell {
+    display: inline-block;
+    width: auto;
+  }
+}
 a.brand {
   display: flex;
   height: 85px;
@@ -126,6 +281,37 @@ a.brand {
   font-size: 60px;
   font-weight: 400;
   line-height: 1.08;
+}
+.catalog-hero {
+  min-height: 290px;
+}
+.catalog-hero-shade {
+  background: linear-gradient(
+    90deg,
+    #fff 0%,
+    #fff 24%,
+    rgb(255 255 255 / 66%) 48%,
+    rgb(255 255 255 / 8%) 80%
+  );
+}
+.catalog-bag-sheet {
+  width: 66.6667vw !important;
+  max-width: none !important;
+}
+.catalog-bag-list {
+  flex: 0 1 auto;
+}
+@media (min-width: 640px) {
+  .catalog-bag-sheet {
+    width: 430px !important;
+  }
+}
+.catalog-hero .catalog-heading {
+  font-size: clamp(2.3rem, 5vw, 4.2rem);
+}
+.catalog-steps > div + div {
+  border-left: 1px solid var(--border);
+  padding-left: 1rem;
 }
 .product-photo {
   aspect-ratio: 3/4;
@@ -169,6 +355,16 @@ a.brand {
   background: oklch(0.66 0.063 350);
 }
 @media (max-width: 640px) {
+  .catalog-hero {
+    min-height: 260px;
+  }
+  .catalog-hero .catalog-heading {
+    font-size: 2.35rem;
+  }
+  .catalog-steps > div + div {
+    border-left: 0;
+    padding-left: 0;
+  }
   .brand {
     font-size: 31px;
   }

@@ -74,7 +74,7 @@ export function SiteNavbar({
           </a>
           {!isAdminNavbar && (
             <nav className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-9 text-sm md:flex">
-              <span>Seu movimento. Seu estilo.</span>
+              <span className="navbar-slogan">Seu movimento. Seu estilo.</span>
             </nav>
           )}
           <div className="site-navbar-actions pointer-events-none absolute inset-x-10 top-1/2 z-10 flex -translate-y-1/2 items-center justify-between gap-2 text-foreground [&_*]:pointer-events-auto md:static md:z-auto md:translate-y-0 md:justify-end md:gap-4">

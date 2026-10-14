@@ -6,6 +6,7 @@ export type OrderLine = {
   color?: string;
   size?: string;
   quantity: number;
+  price?: number;
 };
 
 export function isAccessoryCategory(category: string) {
@@ -61,30 +62,65 @@ export function parseCatalogPrice(value: string) {
   return Math.round(parsed * 100) / 100;
 }
 
-export function addOrderLine(lines: OrderLine[], item: Omit<OrderLine, "quantity">): OrderLine[] {
-  const exists = lines.some((line) => line.id === item.id && line.size === item.size);
+export function sameOrderLine(
+  a: Pick<OrderLine, "id" | "size" | "color">,
+  b: Pick<OrderLine, "id" | "size" | "color">,
+) {
+  return a.id === b.id && a.size === b.size && a.color === b.color;
+}
+
+export function addOrderLine(
+  lines: OrderLine[],
+  item: Omit<OrderLine, "quantity"> & { quantity?: number },
+): OrderLine[] {
+  const quantity = Math.max(1, Math.trunc(item.quantity ?? 1));
+  const exists = lines.some((line) => sameOrderLine(line, item));
   return exists
     ? lines.map((line) =>
-        line.id === item.id && line.size === item.size
-          ? { ...line, quantity: line.quantity + 1 }
-          : line,
+        sameOrderLine(line, item) ? { ...line, quantity: line.quantity + quantity } : line,
       )
-    : [...lines, { ...item, quantity: 1 }];
+    : [...lines, { ...item, quantity }];
 }
-export function whatsappOrderUrl(lines: OrderLine[]) {
-  const text = [
-    "Olá, Diva Ativa! Gostaria de fazer um pedido:",
+
+export function replaceOrderLine(lines: OrderLine[], previous: OrderLine, next: OrderLine) {
+  return addOrderLine(
+    lines.filter((line) => !sameOrderLine(line, previous)),
+    next,
+  );
+}
+export function orderSubtotal(lines: OrderLine[]) {
+  return lines.reduce((sum, line) => sum + (line.price ?? 0) * line.quantity, 0);
+}
+
+export function whatsappOrderText(lines: OrderLine[]) {
+  const hasUnknownPrice = lines.some((line) => line.price === undefined);
+  return [
+    "Olá! Gostaria de consultar a disponibilidade destas peças da Diva Ativa:",
+    ...lines.map((line, index) =>
+      [
+        "",
+        `${index + 1}. ${line.name}`,
+        line.color?.trim() ? `Cor: ${line.color.trim()}` : null,
+        line.size?.trim() ? `Tamanho: ${line.size.trim()}` : null,
+        `Quantidade: ${line.quantity}`,
+        line.price === undefined
+          ? "Valor sob consulta"
+          : `Valor informado: ${formatCatalogPrice(line.price)}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
+    ),
     "",
-    ...lines.map((line) => {
-      const color = line.color?.trim();
-      const size = line.size?.trim();
-      const details = [color, size ? `tamanho ${size}` : undefined].filter(Boolean).join(", ");
-      return `${line.quantity}x ${line.name}${details ? ` — ${details}` : ""}`;
-    }),
+    hasUnknownPrice
+      ? orderSubtotal(lines) > 0
+        ? `Subtotal parcial dos itens com preço: ${formatCatalogPrice(orderSubtotal(lines))}`
+        : "Valores sob consulta"
+      : `Subtotal estimado: ${formatCatalogPrice(orderSubtotal(lines))}`,
     "",
-    lines.some((line) => line.size?.trim())
-      ? "Podem confirmar os valores e a disponibilidade?"
-      : "Podem confirmar os valores, as cores disponíveis e a entrega?",
+    "Podem confirmar a disponibilidade e me orientar sobre pagamento e entrega?",
   ].join("\n");
-  return `https://wa.me/${STORE_WHATSAPP}?text=${encodeURIComponent(text)}`;
+}
+
+export function whatsappOrderUrl(lines: OrderLine[]) {
+  return `https://wa.me/${STORE_WHATSAPP}?text=${encodeURIComponent(whatsappOrderText(lines))}`;
 }

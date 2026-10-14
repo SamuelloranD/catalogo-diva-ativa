@@ -34,6 +34,9 @@ export type Database = {
           tag: string;
           active: boolean;
           sort_order: number;
+          price: number | null;
+          sizes: string[] | null;
+          colors: Array<{ name: string; hex?: string }> | null;
           created_at: string;
           updated_at: string;
         };
@@ -47,6 +50,9 @@ export type Database = {
           tag?: string;
           active?: boolean;
           sort_order?: number;
+          price?: number | null;
+          sizes?: string[] | null;
+          colors?: Array<{ name: string; hex?: string }> | null;
         };
         Update: Partial<Database["public"]["Tables"]["products"]["Insert"]>;
         Relationships: [];
@@ -68,6 +74,12 @@ export type Database = {
           alt_text?: string;
         };
         Update: Partial<Database["public"]["Tables"]["product_images"]["Insert"]>;
+        Relationships: [];
+      };
+      product_categories: {
+        Row: { product_id: string; category_id: string };
+        Insert: { product_id: string; category_id: string };
+        Update: Partial<{ product_id: string; category_id: string }>;
         Relationships: [];
       };
       profiles: {
@@ -92,8 +104,9 @@ export type Database = {
 };
 
 const env = import.meta.env as Record<string, string | undefined>;
-const supabaseUrl = env.VITE_SUPABASE_URL;
-const supabasePublishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY ?? env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = env["VITE_SUPABASE_URL"];
+const supabasePublishableKey =
+  env["VITE_SUPABASE_PUBLISHABLE_KEY"] ?? env["VITE_SUPABASE_ANON_KEY"];
 
 export function isSupabaseConfigured() {
   return Boolean(supabaseUrl && supabasePublishableKey);

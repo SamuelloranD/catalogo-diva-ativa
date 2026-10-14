@@ -50,10 +50,10 @@ describe("Atletika catalog products", () => {
     expect(screen.queryByRole("button", { name: /Favoritar/ })).not.toBeInTheDocument();
   });
 
-  it("keeps the consultation message without a color swatch", () => {
+  it("shows consultation prices without inventing color options", () => {
     render(<Catalog />);
 
-    expect(screen.getAllByText("Consultar valores e cores disponíveis")).toHaveLength(22);
+    expect(screen.getAllByText("Valor sob consulta")).toHaveLength(22);
     expect(document.querySelectorAll(".swatch")).toHaveLength(0);
   });
 });

@@ -28,9 +28,9 @@ describe("Summi catalog products", () => {
           screen.getAllByRole("button", { name: new RegExp(`Ver imagem \\d de ${name}`) }),
         ).toHaveLength(5);
       });
-      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      fireEvent.click(screen.getByRole("button", { name: "Fechar produto" }));
       await waitFor(() =>
-        expect(screen.queryByRole("button", { name: "Close" })).not.toBeInTheDocument(),
+        expect(screen.queryByRole("button", { name: "Fechar produto" })).not.toBeInTheDocument(),
       );
     }
   }, 15000);

@@ -44,7 +44,7 @@ export function ProductImageEditor({
 }: ProductImageEditorProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
-  const dragRef = useRef<{ pointerId: number; start: Point; origin: Point }>();
+  const dragRef = useRef<{ pointerId: number; start: Point; origin: Point } | null>(null);
   const [imageSize, setImageSize] = useState<Size>({ width: 0, height: 0 });
   const [previewSize, setPreviewSize] = useState<Size>({ width: 320, height: 426.67 });
   const [zoom, setZoom] = useState(MIN_ZOOM);
@@ -130,7 +130,7 @@ export function ProductImageEditor({
   }
 
   function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
-    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = undefined;
+    if (dragRef.current?.pointerId === event.pointerId) dragRef.current = null;
   }
 
   async function handleSave() {

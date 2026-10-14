@@ -14,6 +14,8 @@ const buttonVariants = cva(
           "text-primary-foreground hover:bg-primary-foreground/15 hover:text-primary-foreground",
         image: "rounded-none bg-transparent focus-visible:ring-inset",
         photoIcon: "rounded-full bg-background/95 text-foreground hover:bg-secondary shadow-none",
+        colorOption:
+          "bg-transparent text-foreground shadow-none hover:bg-transparent hover:text-foreground",
         dropdown: "dropdown-trigger",
         productName:
           "h-auto w-full justify-start whitespace-normal rounded-none px-0 py-0 text-left text-sm font-medium hover:text-primary",

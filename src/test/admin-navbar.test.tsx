@@ -24,7 +24,7 @@ describe("Admin site navbar", () => {
     expect(document.querySelector(".site-navbar-logo")).toHaveClass("md:absolute", "md:left-1/2");
     expect(document.querySelector(".site-navbar-leading-action")).toHaveClass(
       "md:left-auto",
-      "md:right-0",
+      "md:right-24",
     );
   });
 });

@@ -12,8 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   appendCatalogPriceDigit,
   formatCatalogPriceInput,
+  isAccessoryCategory,
   removeCatalogPriceDigit,
 } from "@/lib/catalog";
+import { CATALOG_SIZE_OPTIONS } from "@/lib/catalog-types";
 import type {
   CatalogCategory,
   CatalogImage,
@@ -37,6 +39,23 @@ type ProductFormProps = {
   embedded?: boolean;
 };
 
+function productSaveErrorMessage(reason: unknown) {
+  if (reason && typeof reason === "object" && "message" in reason) {
+    const message = reason.message;
+    if (typeof message === "string") {
+      const code = "code" in reason ? reason.code : undefined;
+      if (
+        (code === "PGRST204" || code === "PGRST205" || code === "42703" || code === "42P01") &&
+        /sizes|colors|product_categories/i.test(message)
+      ) {
+        return "O Supabase ainda não reconhece os campos de tamanhos, cores ou categorias adicionais. Aplique a migração 20261014_product_variations.sql e atualize o cache do esquema.";
+      }
+      return message;
+    }
+  }
+  return "Não foi possível salvar o produto.";
+}
+
 export function ProductForm({
   product,
   categories,
@@ -49,6 +68,16 @@ export function ProductForm({
 }: ProductFormProps) {
   const initialName = product?.name ?? "";
   const initialCategoryId = product?.categoryId ?? "";
+  const initialCategoryIds =
+    product?.categoryIds ?? (product?.categoryId ? [product.categoryId] : []);
+  const initialSizes =
+    product?.sizes ??
+    (product
+      ? isAccessoryCategory(product.category)
+        ? []
+        : ["P", "M", "G", "GG"]
+      : ["P", "M", "G", "G1", "G2"]);
+  const initialColors = product?.colors ?? [];
   const initialBrand = product?.brand ?? "Diva Ativa";
   const initialDescription = product?.description ?? "";
   const initialColorLabel = product?.color ?? "Cores disponíveis";
@@ -56,6 +85,9 @@ export function ProductForm({
   const initialPriceCents = product?.price === undefined ? 0 : Math.round(product.price * 100);
   const [name, setName] = useState(initialName);
   const [categoryId, setCategoryId] = useState(initialCategoryId);
+  const [categoryIds, setCategoryIds] = useState<string[]>(initialCategoryIds);
+  const [sizes, setSizes] = useState<string[]>(initialSizes);
+  const [colors, setColors] = useState(initialColors);
   const [brand, setBrand] = useState(initialBrand);
   const [description, setDescription] = useState(initialDescription);
   const [colorLabel, setColorLabel] = useState(initialColorLabel);
@@ -71,6 +103,7 @@ export function ProductForm({
   );
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"general" | "variations" | "photos">("general");
   const categoryOptions = useMemo(
     () => categories.map((category) => ({ value: category.id, label: category.name })),
     [categories],
@@ -83,6 +116,9 @@ export function ProductForm({
   const isDirty =
     name !== initialName ||
     categoryId !== initialCategoryId ||
+    JSON.stringify(categoryIds) !== JSON.stringify(initialCategoryIds) ||
+    JSON.stringify(sizes) !== JSON.stringify(initialSizes) ||
+    JSON.stringify(colors) !== JSON.stringify(initialColors) ||
     brand !== initialBrand ||
     description !== initialDescription ||
     colorLabel !== initialColorLabel ||
@@ -103,6 +139,7 @@ export function ProductForm({
     try {
       const createdCategory = await onCreateCategory(newCategoryName.trim());
       setCategoryId(createdCategory.id);
+      setCategoryIds((current) => [...new Set([...current, createdCategory.id])]);
       setNewCategoryName("");
       setShowNewCategory(false);
     } catch (reason) {
@@ -136,11 +173,19 @@ export function ProductForm({
         {
           name,
           categoryId,
+          categoryIds: [...new Set([categoryId, ...categoryIds])],
+          sizes,
+          colors: colors
+            .filter((color) => color.name.trim())
+            .map((color) => ({
+              name: color.name.trim(),
+              ...(color.hex ? { hex: color.hex } : {}),
+            })),
           brand,
           description,
           colorLabel,
           tag,
-          price: priceCents > 0 ? priceCents / 100 : undefined,
+          ...(priceCents > 0 ? { price: priceCents / 100 } : {}),
           active: true,
         },
         files,
@@ -148,7 +193,7 @@ export function ProductForm({
         imageItems,
       );
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Não foi possível salvar o produto.");
+      setError(productSaveErrorMessage(reason));
     } finally {
       setSaving(false);
     }
@@ -157,163 +202,345 @@ export function ProductForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className={`relative grid gap-5 p-5 ${embedded ? "" : "rounded-2xl border bg-background"}`}
+      className={`grid gap-4 ${embedded ? "" : "rounded-xl border bg-background p-5"}`}
     >
       {showCloseButton && (
         <Button
           type="button"
-          variant="destructive"
+          variant="ghost"
           size="icon"
-          aria-label="Fechar modal"
-          title="Fechar modal"
-          className="absolute right-4 top-4 rounded-full shadow-md ring-2 ring-background transition-all hover:shadow-lg focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2"
+          aria-label="Fechar formulário"
+          className="justify-self-end"
           onClick={onCancel}
         >
-          <X className="size-5" />
+          <X />
         </Button>
       )}
-      <div className={showCloseButton ? "pr-12" : undefined}>
-        <h3 className="font-medium">{product ? "Editar produto" : "Novo produto"}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Preencha os dados exibidos no catálogo.
-        </p>
+      <div
+        className="grid grid-cols-3 gap-1 rounded-lg bg-muted p-1 lg:hidden"
+        aria-label="Seções do produto"
+      >
+        {(
+          [
+            ["general", "Geral"],
+            ["variations", "Variações"],
+            ["photos", "Fotos"],
+          ] as const
+        ).map(([tab, label]) => (
+          <Button
+            key={tab}
+            type="button"
+            size="sm"
+            variant={mobileTab === tab ? "outline" : "ghost"}
+            className="px-2"
+            aria-pressed={mobileTab === tab}
+            onClick={() => setMobileTab(tab)}
+          >
+            {label}
+          </Button>
+        ))}
       </div>
-      <label className="grid gap-2 text-sm font-medium">
-        Nome da peça
-        <Input
-          aria-label="Nome da peça"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          required
-        />
-      </label>
-      <div className="grid gap-2 text-sm font-medium">
-        <span>Categoria</span>
-        <div className="flex flex-wrap items-center gap-2">
-          {categoryOptions.length > 0 ? (
-            <CatalogDropdown
-              label="Categoria"
-              value={categoryId}
-              options={categoryOptions}
-              onValueChange={setCategoryId}
-              placeholder="Selecione a categoria"
-              showLabel={false}
-              compact
-              className="w-full min-w-0 max-w-sm sm:w-64"
-            />
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Crie uma categoria antes de cadastrar produtos.
+      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+        <div
+          className={`grid content-start gap-4 ${mobileTab === "general" ? "" : "hidden lg:grid"}`}
+        >
+          <section className="admin-editor-card grid gap-4 rounded-lg border p-4 sm:p-5">
+            <div>
+              <h2 className="text-sm font-semibold">Informações gerais</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Dados principais exibidos no catálogo.
+              </p>
+            </div>
+            <label className="grid gap-2 text-xs font-medium">
+              Nome da peça
+              <Input
+                aria-label="Nome da peça"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+            </label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="grid gap-2 text-xs font-medium">
+                Marca
+                <Input value={brand} onChange={(event) => setBrand(event.target.value)} />
+              </label>
+              <label className="grid gap-2 text-xs font-medium">
+                Tag
+                <Input
+                  placeholder="Ex.: NOVO"
+                  value={tag}
+                  onChange={(event) => setTag(event.target.value)}
+                />
+              </label>
+            </div>
+            <label className="grid gap-2 text-xs font-medium">
+              Preço (BRL)
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                  R$
+                </span>
+                <Input
+                  aria-label="Valor (BRL)"
+                  className="pl-10"
+                  inputMode="numeric"
+                  value={formatCatalogPriceInput(priceCents)}
+                  onChange={(event) => {
+                    const digits = event.target.value.replace(/\D/g, "");
+                    setPriceCents(digits ? Number(digits) : 0);
+                  }}
+                  onKeyDown={(event) => {
+                    if (/^\d$/.test(event.key)) {
+                      event.preventDefault();
+                      setPriceCents((current) =>
+                        appendCatalogPriceDigit(current, Number(event.key)),
+                      );
+                    } else if (event.key === "Backspace" || event.key === "Delete") {
+                      event.preventDefault();
+                      setPriceCents(removeCatalogPriceDigit);
+                    }
+                  }}
+                />
+              </div>
+            </label>
+            <label className="grid gap-2 text-xs font-medium">
+              Descrição
+              <Textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                rows={4}
+              />
+            </label>
+          </section>
+
+          <section className="admin-editor-card grid gap-4 rounded-lg border p-4 sm:p-5">
+            <div>
+              <h2 className="text-sm font-semibold">Categorias</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Escolha onde a peça aparecerá no catálogo.
+              </p>
+            </div>
+            <div className="grid gap-2 text-xs font-medium">
+              <span>
+                Categoria principal{" "}
+                <span aria-hidden="true" className="text-destructive">
+                  *
+                </span>
+              </span>
+              {categoryOptions.length > 0 ? (
+                <CatalogDropdown
+                  label="Categoria"
+                  value={categoryId}
+                  options={categoryOptions}
+                  onValueChange={(id) => {
+                    setCategoryId(id);
+                    setCategoryIds((current) => [...new Set([...current, id])]);
+                  }}
+                  placeholder="Selecione a categoria"
+                  showLabel={false}
+                  compact
+                  className="w-full min-w-0"
+                />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Crie uma categoria antes de cadastrar produtos.
+                </p>
+              )}
+            </div>
+            {categoryOptions.length > 0 && (
+              <fieldset className="grid gap-2">
+                <legend className="mb-2 text-xs font-medium">Demais categorias</legend>
+                <div className="flex flex-wrap gap-2">
+                  {categoryOptions
+                    .filter((option) => option.value !== categoryId)
+                    .map((option) => (
+                      <label key={option.value} className="admin-choice-chip cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={categoryIds.includes(option.value)}
+                          onChange={(event) =>
+                            setCategoryIds((current) =>
+                              event.target.checked
+                                ? [...current, option.value]
+                                : current.filter((id) => id !== option.value),
+                            )
+                          }
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                </div>
+              </fieldset>
+            )}
+            {onCreateCategory && (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                className="h-auto w-fit px-0 text-xs"
+                onClick={() => {
+                  setCategoryError("");
+                  setShowNewCategory((open) => !open);
+                }}
+              >
+                + Nova categoria
+              </Button>
+            )}
+            {showNewCategory && onCreateCategory && (
+              <div className="flex flex-wrap gap-2">
+                <Input
+                  aria-label="Nome da nova categoria"
+                  className="min-w-40 flex-1"
+                  placeholder="Ex.: Saias"
+                  value={newCategoryName}
+                  onChange={(event) => setNewCategoryName(event.target.value)}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={addingCategory || !newCategoryName.trim()}
+                  onClick={() => void handleCreateCategory()}
+                >
+                  {addingCategory ? "Adicionando..." : "Adicionar categoria"}
+                </Button>
+              </div>
+            )}
+            {categoryError && (
+              <p role="alert" className="text-sm text-destructive">
+                {categoryError}
+              </p>
+            )}
+          </section>
+        </div>
+
+        <div className="grid content-start gap-4">
+          <section
+            className={`admin-editor-card grid gap-4 rounded-lg border p-4 sm:p-5 ${mobileTab === "variations" ? "" : "hidden lg:grid"}`}
+          >
+            <div>
+              <h2 className="text-sm font-semibold">Tamanhos disponíveis</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Selecione os tamanhos deste produto.
+              </p>
+            </div>
+            <fieldset>
+              <legend className="sr-only">Tamanhos deste produto</legend>
+              <div className="flex flex-wrap gap-2">
+                {CATALOG_SIZE_OPTIONS.map((option) => (
+                  <label key={option} className="cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="peer sr-only"
+                      checked={sizes.includes(option)}
+                      onChange={(event) =>
+                        setSizes((current) =>
+                          event.target.checked
+                            ? [...current, option]
+                            : current.filter((value) => value !== option),
+                        )
+                      }
+                      aria-label={option}
+                    />
+                    <span className="inline-flex h-9 min-w-10 items-center justify-center rounded-md border px-2 text-xs font-medium transition-colors peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground">
+                      {option}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <p className="text-xs text-muted-foreground">
+              Deixe todos desmarcados para peças sem tamanho.
             </p>
-          )}
-          {onCreateCategory && (
+          </section>
+
+          <section
+            className={`admin-editor-card grid gap-3 rounded-lg border p-4 sm:p-5 ${mobileTab === "variations" ? "" : "hidden lg:grid"}`}
+          >
+            <div>
+              <h2 className="text-sm font-semibold">Cores (opcional)</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Adicione as cores disponíveis para este produto.
+              </p>
+            </div>
+            {colors.map((color, index) => (
+              <div key={index} className="flex items-center gap-2 rounded-md border p-2">
+                <Input
+                  aria-label={`Código hexadecimal da cor ${index + 1}`}
+                  type="color"
+                  className="h-8 w-9 shrink-0 border-0 p-0"
+                  value={color.hex ?? "#607354"}
+                  onChange={(event) =>
+                    setColors((current) =>
+                      current.map((item, position) =>
+                        position === index ? { ...item, hex: event.target.value } : item,
+                      ),
+                    )
+                  }
+                />
+                <Input
+                  aria-label={`Nome da cor ${index + 1}`}
+                  placeholder="Nome da cor"
+                  value={color.name}
+                  onChange={(event) =>
+                    setColors((current) =>
+                      current.map((item, position) =>
+                        position === index ? { ...item, name: event.target.value } : item,
+                      ),
+                    )
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Remover cor ${index + 1}`}
+                  onClick={() =>
+                    setColors((current) => current.filter((_, position) => position !== index))
+                  }
+                >
+                  <X />
+                </Button>
+              </div>
+            ))}
             <Button
               type="button"
-              variant="link"
+              variant="outline"
               size="sm"
-              className="h-auto px-0 text-xs"
-              onClick={() => {
-                setCategoryError("");
-                setShowNewCategory((open) => !open);
-              }}
+              className="w-fit"
+              onClick={() => setColors((current) => [...current, { name: "" }])}
             >
-              + Nova categoria
+              + Adicionar cor
             </Button>
-          )}
+            <label className="grid gap-2 text-xs font-medium">
+              Texto de cor
+              <Input value={colorLabel} onChange={(event) => setColorLabel(event.target.value)} />
+            </label>
+          </section>
+
+          <section
+            className={`admin-editor-card grid gap-3 rounded-lg border p-4 sm:p-5 ${mobileTab === "photos" ? "" : "hidden lg:grid"}`}
+          >
+            <div>
+              <h2 className="text-sm font-semibold">Fotos do produto</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Adicione e organize as fotos. A primeira será a capa.
+              </p>
+            </div>
+            <ProductImageUploader items={imageItems} onItemsChange={setImageItems} />
+          </section>
         </div>
-        {showNewCategory && onCreateCategory && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              aria-label="Nome da nova categoria"
-              className="w-full max-w-sm"
-              placeholder="Ex.: Saias"
-              value={newCategoryName}
-              onChange={(event) => setNewCategoryName(event.target.value)}
-            />
-            <Button
-              type="button"
-              size="sm"
-              disabled={addingCategory || !newCategoryName.trim()}
-              onClick={() => void handleCreateCategory()}
-            >
-              {addingCategory ? "Adicionando..." : "Adicionar categoria"}
-            </Button>
-          </div>
-        )}
-        {categoryError && (
-          <p role="alert" className="text-sm text-destructive">
-            {categoryError}
-          </p>
-        )}
-      </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="grid gap-2 text-sm font-medium">
-          Marca
-          <Input value={brand} onChange={(event) => setBrand(event.target.value)} />
-        </label>
-        <label className="grid gap-2 text-sm font-medium">
-          Tag
-          <Input
-            placeholder="Ex.: NOVO"
-            value={tag}
-            onChange={(event) => setTag(event.target.value)}
-          />
-        </label>
-      </div>
-      <label className="grid gap-2 text-sm font-medium">
-        Valor (BRL)
-        <div className="relative">
-          <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
-            R$
-          </span>
-          <Input
-            aria-label="Valor (BRL)"
-            className="pl-10"
-            inputMode="numeric"
-            value={formatCatalogPriceInput(priceCents)}
-            onChange={(event) => {
-              const digits = event.target.value.replace(/\D/g, "");
-              setPriceCents(digits ? Number(digits) : 0);
-            }}
-            onKeyDown={(event) => {
-              if (/^\d$/.test(event.key)) {
-                event.preventDefault();
-                setPriceCents((current) => appendCatalogPriceDigit(current, Number(event.key)));
-              } else if (event.key === "Backspace" || event.key === "Delete") {
-                event.preventDefault();
-                setPriceCents(removeCatalogPriceDigit);
-              }
-            }}
-          />
-        </div>
-      </label>
-      <label className="grid gap-2 text-sm font-medium">
-        Texto de cor
-        <Input value={colorLabel} onChange={(event) => setColorLabel(event.target.value)} />
-      </label>
-      <label className="grid gap-2 text-sm font-medium">
-        Descrição
-        <Textarea
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          rows={4}
-        />
-      </label>
-      <div className="grid gap-2 text-sm font-medium">
-        Fotos do produto
-        <ProductImageUploader items={imageItems} onItemsChange={setImageItems} />
       </div>
       {error && (
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
       )}
-      <div className="flex flex-wrap justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
+      <div className="admin-editor-actions sticky bottom-0 z-10 flex flex-wrap justify-end gap-2 border-t bg-background/95 py-3 backdrop-blur">
+        <Button type="button" variant="outline" onClick={onCancel}>
           Cancelar
         </Button>
         <Button type="submit" disabled={saving || categoryOptions.length === 0}>
-          {saving ? "Salvando..." : "Salvar produto"}
+          {saving ? "Salvando..." : product ? "Salvar alterações" : "Salvar produto"}
         </Button>
       </div>
     </form>

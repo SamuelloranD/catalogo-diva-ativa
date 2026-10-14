@@ -4,6 +4,9 @@ import {
   ArrowUpRight,
   ArrowRight,
   Check,
+  ChevronLeft,
+  ChevronRight,
+  Truck,
   Instagram,
   MessageCircle,
   Minus,
@@ -22,12 +25,16 @@ import {
   addOrderLine,
   formatCatalogPrice,
   isAccessoryCategory,
+  orderSubtotal,
+  replaceOrderLine,
+  sameOrderLine,
+  whatsappOrderText,
   whatsappOrderUrl,
   STORE_INSTAGRAM,
   STORE_WHATSAPP,
   type OrderLine,
 } from "@/lib/catalog";
-import type { CatalogProduct } from "@/lib/catalog-types";
+import { CATALOG_SIZE_OPTIONS, type CatalogProduct } from "@/lib/catalog-types";
 import { getAdminSession } from "@/lib/admin-auth";
 import { supabase } from "@/lib/supabase";
 import { useCatalog } from "@/hooks/use-catalog";
@@ -54,6 +61,7 @@ import macaquitoEllie3 from "@/assets/atletika/macaquito-ellie/3.jpg";
 import macaquitoHelena1 from "@/assets/atletika/macaquito-helena/1.jpg";
 import macaquitoHelena2 from "@/assets/atletika/macaquito-helena/2.jpg";
 import macaquitoHelena3 from "@/assets/atletika/macaquito-helena/3.jpg";
+import paymentMethodsImage from "@/assets/payment-methods.png";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -76,6 +84,15 @@ export const Route = createFileRoute("/")({
   component: Catalog,
 });
 type Product = CatalogProduct;
+
+function PaymentTerms() {
+  return (
+    <div className="text-[11px] font-semibold leading-4 text-primary">
+      <p>3 X sem juros</p>
+      <p>5% de desconto no PIX</p>
+    </div>
+  );
+}
 
 const atletikaProducts: Product[] = [
   {
@@ -412,6 +429,7 @@ type ProductImageButtonProps = {
 
 function ProductImageButton({ product, loading, onSelect }: ProductImageButtonProps) {
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
   const previewImage = product.images[1] ?? product.images[0];
   const hasAlternateImage = product.images.length > 1;
 
@@ -435,14 +453,21 @@ function ProductImageButton({ product, loading, onSelect }: ProductImageButtonPr
       onTouchEnd={stopPreview}
       onTouchCancel={stopPreview}
     >
-      <img
-        src={isPreviewing ? previewImage : product.images[0]}
-        alt={product.name}
-        width={768}
-        height={1024}
-        loading={loading}
-        className="product-photo"
-      />
+      {product.images[0] && !imageFailed ? (
+        <img
+          src={isPreviewing ? previewImage : product.images[0]}
+          alt={product.name}
+          width={768}
+          height={1024}
+          loading={loading}
+          onError={() => setImageFailed(true)}
+          className="product-photo"
+        />
+      ) : (
+        <span className="product-photo flex items-center justify-center bg-muted text-xs text-muted-foreground">
+          Fotografia indisponível
+        </span>
+      )}
     </Button>
   );
 }
@@ -456,10 +481,12 @@ export function Catalog() {
   const [selected, setSelected] = useState<Product | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [size, setSize] = useState("");
+  const [color, setColor] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [notice, setNotice] = useState("");
+  const [copyFallback, setCopyFallback] = useState(false);
   const [cart, setCart] = useState<OrderLine[]>([]);
   const [bagOpen, setBagOpen] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [sizeFilter, setSizeFilter] = useState("Todos");
 
   useEffect(() => {
     let mounted = true;
@@ -478,12 +505,20 @@ export function Catalog() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!notice) return;
+    const timeout = window.setTimeout(() => setNotice(""), 3500);
+    return () => window.clearTimeout(timeout);
+  }, [notice]);
+
   const catalog = useCatalog(products, categories);
   const visible = catalog.products
     .filter(
       (p) =>
-        (category === "Todas as peças" || p.category === category) &&
-        p.name.toLowerCase().includes(query.toLowerCase()),
+        (category === "Todas as peças" || (p.categories ?? [p.category]).includes(category)) &&
+        `${p.name} ${p.description} ${(p.categories ?? [p.category]).join(" ")}`
+          .toLocaleLowerCase("pt-BR")
+          .includes(query.toLocaleLowerCase("pt-BR")),
     )
     .sort((a, b) =>
       sort === "name"
@@ -493,80 +528,144 @@ export function Catalog() {
           : 0,
     );
   const count = cart.reduce((n, l) => n + l.quantity, 0);
+  const hasUnknownPrice = cart.some((line) => line.price === undefined);
   function select(p: Product) {
     setSelected(p);
     setSelectedImageIndex(0);
-    setSize(isAccessoryCategory(p.category) ? "" : sizeFilter === "Todos" ? "" : sizeFilter);
+    setSize("");
+    setColor(p.colors?.length === 1 ? (p.colors[0]?.name ?? "") : "");
+    setQuantity(1);
   }
   function changeQuantity(line: OrderLine, delta: number) {
     setCart((prev) =>
       prev
-        .map((l) =>
-          l.id === line.id && l.size === line.size ? { ...l, quantity: l.quantity + delta } : l,
-        )
+        .map((l) => (sameOrderLine(l, line) ? { ...l, quantity: l.quantity + delta } : l))
         .filter((l) => l.quantity > 0),
     );
   }
   const selectedIsAccessory = selected ? isAccessoryCategory(selected.category) : false;
-  const cartHasSizedItem = cart.some((line) => Boolean(line.size));
+  const selectedSizes = selected?.sizes ?? (selectedIsAccessory ? [] : ["P", "M", "G", "GG"]);
+  const displayedSizes = [
+    ...CATALOG_SIZE_OPTIONS,
+    ...selectedSizes.filter((option) => !CATALOG_SIZE_OPTIONS.some((size) => size === option)),
+  ];
+  const selectedColors = selected?.colors ?? [];
+  const canAdd =
+    selected &&
+    (selectedSizes.length === 0 || Boolean(size)) &&
+    (selectedColors.length < 2 || Boolean(color));
+  function sendOrder() {
+    setCopyFallback(false);
+    const popup = window.open(whatsappOrderUrl(cart), "_blank");
+    if (popup) popup.opener = null;
+    if (!popup) setCopyFallback(true);
+  }
+  function lineIsUnavailable(line: OrderLine) {
+    const product = catalog.products.find((item) => item.id === line.id);
+    if (!product) return catalog.source === "remote";
+    return Boolean(
+      (product.sizes?.length && !line.size) ||
+      (product.sizes && line.size && !product.sizes.includes(line.size)) ||
+      (product.colors?.length && !line.color) ||
+      (product.colors?.length &&
+        line.color &&
+        !product.colors.some((option) => option.name === line.color)),
+    );
+  }
   return (
     <>
       <SiteNavbar
         isAdmin={isAdmin}
-        leftAction={
-          <Button
-            variant="navbar"
-            size="navbarIcon"
-            title="Buscar peças"
-            aria-label="Buscar peças"
-            onClick={() => setSearchOpen(!searchOpen)}
-          >
-            <Search />
-          </Button>
-        }
         rightAction={
-          <Button
-            variant="navbar"
-            size="navbarIcon"
-            className="relative [&_svg]:size-5"
-            aria-label={`Abrir sacola, ${count} itens`}
-            onClick={() => setBagOpen(true)}
-          >
-            <ShoppingBag />
-            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1 text-[11px] text-foreground">
-              {count}
-            </span>
-          </Button>
+          <div className="flex items-center gap-3">
+            <label className="hidden items-center gap-2 rounded-md border border-white/30 bg-white/15 px-3 text-primary-foreground lg:flex">
+              <Search className="size-4" />
+              <input
+                aria-label="Buscar produtos"
+                placeholder="Buscar produtos, categorias..."
+                className="h-10 w-52 bg-transparent text-xs outline-none placeholder:text-white/75"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </label>
+            <Button
+              variant="navbar"
+              size="navbarIcon"
+              className="relative [&_svg]:size-5"
+              aria-label={`Abrir sacola, ${count} itens`}
+              onClick={() => setBagOpen(true)}
+            >
+              <ShoppingBag />
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-background px-1 text-[11px] text-foreground">
+                {count}
+              </span>
+            </Button>
+          </div>
         }
       />
       <main
         data-testid="catalog"
         data-catalog-source={catalog.source}
-        className="mx-auto max-w-[1440px] px-6 pb-20 pt-12 lg:px-14 lg:pt-14"
+        className="mx-auto max-w-[1440px] px-4 pb-20 pt-5 sm:px-6 lg:px-14"
       >
-        <div className="mb-9 flex items-end justify-between gap-4">
-          <div>
-            <p className="mb-4 text-[10px] font-medium uppercase tracking-widest text-primary">
-              DIVA ATIVA · MODA FITNESS
-            </p>
+        <section className="catalog-hero relative isolate mb-5 overflow-hidden rounded-md bg-secondary">
+          <img
+            src={macacaoMarta1}
+            alt="Moda fitness Diva Ativa"
+            className="absolute inset-0 h-full w-full object-cover object-[60%_30%]"
+          />
+          <div className="catalog-hero-shade absolute inset-0" />
+          <div className="relative max-w-[58%] px-6 py-10 sm:px-10 sm:py-14">
             <h1 className="catalog-heading">
-              Vista sua <em className="text-primary">melhor versão.</em>
+              Vista sua <em>melhor versão.</em>
             </h1>
-            <p className="mt-4 text-sm leading-6 text-muted-foreground">
+            <p className="mt-4 max-w-xs text-xs leading-5 text-muted-foreground sm:text-sm">
               Do treino ao seu dia a dia, encontre o look que acompanha você.
             </p>
+            <Button
+              className="mt-5"
+              onClick={() =>
+                document.getElementById("pecas")?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              Explorar peças <ArrowRight />
+            </Button>
           </div>
-          <div className="mb-1 hidden items-center gap-2 text-xs text-muted-foreground lg:flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-sage" />
-            Feito para mulheres em movimento
+        </section>
+        <div className="catalog-steps mb-7 grid grid-cols-1 gap-3 border-b py-4 text-xs sm:grid-cols-3 sm:gap-4">
+          <div className="flex items-center gap-3">
+            <ShoppingBag className="text-primary" />
+            <span>
+              <strong>1.</strong> Escolha as peças
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <MessageCircle className="text-primary" />
+            <span>
+              <strong>2.</strong> Envie o pedido no WhatsApp
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Truck className="text-primary" />
+            <span>
+              <strong>3.</strong> Combine pagamento e entrega
+            </span>
+          </div>
+        </div>
+        <div id="pecas" className="mb-3 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-widest text-primary">
+              Diva Ativa · Moda Fitness
+            </p>
+            <h2 className="font-display text-3xl sm:text-4xl">Encontre seu próximo look</h2>
           </div>
         </div>
         {searchOpen && (
-          <div className="mb-5 flex items-center gap-3 border-b py-3">
+          <div className="mb-5 flex items-center gap-3 rounded-md border px-4 py-3">
             <Search size={18} />
             <input
               autoFocus
-              aria-label="Nome da peça"
+              aria-label="Buscar no catálogo"
               placeholder="O que você está procurando?"
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
               value={query}
@@ -586,7 +685,7 @@ export function Catalog() {
           </div>
         )}
         <div className="w-full border-b">
-          <div className="flex w-full min-w-0 gap-6 overflow-x-auto sm:gap-8">
+          <div className="flex w-full min-w-0 gap-6 overflow-x-auto whitespace-nowrap sm:gap-8">
             {catalog.categories.map((c) => (
               <Button
                 key={c}
@@ -603,7 +702,7 @@ export function Catalog() {
         </div>
         <div className="flex min-h-16 items-center justify-between gap-4 text-xs text-muted-foreground">
           <span>
-            {visible.length} peças {sizeFilter !== "Todos" && `· tamanho ${sizeFilter}`}
+            {visible.length} {visible.length === 1 ? "peça" : "peças"}
           </span>
           <div className="flex items-center gap-2">
             <CatalogDropdown
@@ -618,7 +717,17 @@ export function Catalog() {
             />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-9 md:grid-cols-4 md:gap-x-6">
+        {catalog.loading && (
+          <p role="status" className="mb-4 text-sm">
+            Carregando catálogo...
+          </p>
+        )}
+        {catalog.error && (
+          <p role="alert" className="mb-4 text-sm text-destructive">
+            Não foi possível atualizar o catálogo. Exibindo peças disponíveis nesta versão.
+          </p>
+        )}
+        <div className="grid grid-cols-2 gap-x-3 gap-y-8 sm:gap-x-5 lg:grid-cols-4">
           {visible.map((p, i) => {
             const formattedPrice = formatCatalogPrice(p.price);
 
@@ -635,30 +744,38 @@ export function Catalog() {
                       {p.tag}
                     </span>
                   )}
-                  <Button
-                    variant="photoIcon"
-                    size="icon"
-                    className="absolute bottom-3 right-3"
-                    title="Adicionar à sacola"
-                    aria-label={`Adicionar ${p.name} à sacola`}
-                    onClick={() => select(p)}
-                  >
-                    <Plus />
-                  </Button>
                 </div>
-                <div className="pt-4">
+                <div className="pt-3">
                   <p className="mb-1.5 text-[10px] text-muted-foreground">{p.category}</p>
                   <Button variant="productName" className="w-full px-0" onClick={() => select(p)}>
                     {p.name}
                   </Button>
-                  {formattedPrice && (
-                    <p className="mt-1.5 text-sm font-medium text-foreground">{formattedPrice}</p>
-                  )}
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    {formattedPrice
-                      ? "Consultar cores disponíveis."
-                      : "Consultar valores e cores disponíveis."}
+                  <p className="mt-1.5 text-sm font-semibold text-foreground">
+                    {formattedPrice ?? "Valor sob consulta"}
                   </p>
+                  {Boolean(p.colors?.length) && (
+                    <div
+                      className="mt-2 flex items-center gap-1.5"
+                      aria-label={`Cores: ${p.colors?.map((c) => c.name).join(", ")}`}
+                    >
+                      {p.colors?.slice(0, 4).map((c) => (
+                        <span
+                          key={c.name}
+                          title={c.name}
+                          className="h-4 w-4 rounded-full border"
+                          style={{ backgroundColor: c.hex ?? "transparent" }}
+                        />
+                      ))}
+                      {(p.colors?.length ?? 0) > 4 && (
+                        <span className="text-[10px] text-muted-foreground">
+                          +{(p.colors?.length ?? 0) - 4}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  <Button className="mt-3 h-8 w-full text-xs" onClick={() => select(p)}>
+                    Escolher opções
+                  </Button>
                 </div>
               </article>
             );
@@ -682,7 +799,7 @@ export function Catalog() {
             </Button>
           </div>
         )}
-        <div className="mt-14 flex flex-col items-center justify-between gap-5 border-y py-7 sm:flex-row">
+        <div className="mt-14 grid items-center gap-x-6 gap-y-6 border-y py-7 xl:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]">
           <div className="flex items-center gap-4">
             <MessageCircle className="text-primary" size={24} />
             <div>
@@ -692,7 +809,18 @@ export function Catalog() {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="mx-auto flex w-full max-w-[260px] flex-col items-center gap-2">
+            <p className="text-xs font-semibold text-foreground">Formas de pagamento</p>
+            <img
+              src={paymentMethodsImage}
+              alt="Bandeiras das formas de pagamento aceitas"
+              width={539}
+              height={51}
+              loading="lazy"
+              className="h-auto w-full"
+            />
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3 xl:justify-self-end">
             <Button asChild variant="outline" size="sm" className="text-xs">
               <a href={`https://wa.me/${STORE_WHATSAPP}`} target="_blank" rel="noreferrer">
                 <MessageCircle /> WhatsApp
@@ -726,109 +854,237 @@ export function Catalog() {
           if (!open) setSelected(null);
         }}
       >
-        <DialogContent className="h-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto p-5 sm:h-[720px] sm:max-h-[calc(100dvh-2rem)] sm:p-6">
+        <DialogContent
+          closeLabel="Fechar produto"
+          className="max-h-[94dvh] w-[calc(100%-1rem)] max-w-4xl overflow-y-auto p-4 sm:max-h-[90dvh] sm:p-7"
+        >
           {selected && (
-            <div className="grid gap-6 sm:grid-cols-2">
-              <div className="space-y-3">
-                <img
-                  src={selected.images[selectedImageIndex] ?? selected.images[0]}
-                  alt={selected.name}
-                  width={768}
-                  height={1024}
-                  className="hidden h-auto w-full rounded-sm sm:block sm:h-[500px] sm:object-contain"
-                />
-                <div className="grid grid-cols-3 gap-2">
-                  {selected.images.map((image, imageIndex) => (
-                    <button
-                      key={image}
-                      type="button"
-                      aria-label={`Ver imagem ${imageIndex + 1} de ${selected.name}`}
-                      aria-pressed={selectedImageIndex === imageIndex}
-                      onClick={() => setSelectedImageIndex(imageIndex)}
-                      className={`overflow-hidden rounded-sm border transition-colors ${
-                        selectedImageIndex === imageIndex
-                          ? "border-primary"
-                          : "border-transparent hover:border-border"
-                      }`}
-                    >
-                      <img
-                        src={image}
-                        alt=""
-                        width={160}
-                        height={210}
-                        className="aspect-[3/4] w-full object-cover"
-                      />
-                    </button>
-                  ))}
+            <div className="grid gap-6 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] md:gap-8">
+              <div className="min-w-0 space-y-2">
+                <div className="relative overflow-hidden rounded-md bg-muted">
+                  {selected.images.length ? (
+                    <img
+                      src={selected.images[selectedImageIndex] ?? selected.images[0]}
+                      alt={selected.name}
+                      width={768}
+                      height={1024}
+                      className="h-[250px] w-full object-contain sm:h-[440px]"
+                    />
+                  ) : (
+                    <div className="flex h-[310px] items-center justify-center text-sm text-muted-foreground">
+                      Fotografia indisponível
+                    </div>
+                  )}
+                  {selected.images.length > 1 && (
+                    <>
+                      <Button
+                        variant="photoIcon"
+                        size="icon"
+                        className="absolute left-2 top-1/2 -translate-y-1/2"
+                        aria-label="Imagem anterior"
+                        onClick={() =>
+                          setSelectedImageIndex(
+                            (current) =>
+                              (current - 1 + selected.images.length) % selected.images.length,
+                          )
+                        }
+                      >
+                        <ChevronLeft />
+                      </Button>
+                      <Button
+                        variant="photoIcon"
+                        size="icon"
+                        className="absolute right-2 top-1/2 -translate-y-1/2"
+                        aria-label="Próxima imagem"
+                        onClick={() =>
+                          setSelectedImageIndex((current) => (current + 1) % selected.images.length)
+                        }
+                      >
+                        <ChevronRight />
+                      </Button>
+                    </>
+                  )}
                 </div>
+                {selected.images.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {selected.images.map((image, imageIndex) => (
+                      <button
+                        key={image}
+                        type="button"
+                        aria-label={`Ver imagem ${imageIndex + 1} de ${selected.name}`}
+                        aria-pressed={selectedImageIndex === imageIndex}
+                        onClick={() => setSelectedImageIndex(imageIndex)}
+                        className={`w-14 shrink-0 overflow-hidden rounded-sm border-2 transition-colors ${
+                          selectedImageIndex === imageIndex
+                            ? "border-primary"
+                            : "border-transparent hover:border-border"
+                        }`}
+                      >
+                        <img
+                          src={image}
+                          alt=""
+                          width={160}
+                          height={210}
+                          className="aspect-[3/4] w-full object-cover"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="product-dialog-details flex flex-col justify-start">
-                <p className="mb-3 text-xs text-primary">{selected.category}</p>
-                <DialogTitle className="font-display text-3xl font-normal">
+                <p className="mb-2 text-xs text-muted-foreground">{selected.category}</p>
+                <DialogTitle className="font-display text-4xl font-normal">
                   {selected.name}
                 </DialogTitle>
-                <DialogDescription className="mt-4 leading-6">
-                  {selected.description}
-                </DialogDescription>
-                <p className="mt-5 text-sm">
-                  {selectedIsAccessory ? "Cores confirmadas pelo WhatsApp" : selected.color} · Valor
-                  sob consulta
-                </p>
-                {!selectedIsAccessory && (
-                  <>
-                    <p className="mb-3 mt-7 text-xs">Tamanho</p>
-                    <div className="flex gap-2">
-                      {["P", "M", "G", "GG"].map((s) => (
+                {selected.description && (
+                  <DialogDescription className="mt-3 leading-6">
+                    {selected.description}
+                  </DialogDescription>
+                )}
+                <div className="mt-4 border-b pb-4">
+                  <p className="text-xl font-semibold">
+                    {formatCatalogPrice(selected.price) ?? "Valor sob consulta"}
+                  </p>
+                  <div className="mt-2">
+                    <PaymentTerms />
+                  </div>
+                </div>
+                {selectedColors.length > 0 && (
+                  <fieldset className="mt-4">
+                    <legend className="mb-2 text-xs font-semibold">
+                      {selectedColors.length === 1 ? "Cor" : "Cores disponíveis"}
+                    </legend>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedColors.map((option) => (
                         <Button
-                          key={s}
-                          variant={size === s ? "default" : "outline"}
-                          aria-pressed={size === s}
-                          onClick={() => setSize(s)}
+                          key={option.name}
+                          type="button"
+                          variant="colorOption"
+                          aria-pressed={color === option.name}
+                          aria-label={`Cor ${option.name}`}
+                          className="catalog-color-option h-auto min-h-16 w-20 flex-col gap-2 whitespace-normal rounded-none p-1 text-center text-[11px] leading-tight"
+                          onClick={() => setColor(option.name)}
                         >
-                          {s}
+                          <span
+                            className="catalog-color-swatch shrink-0"
+                            aria-hidden="true"
+                            style={{ backgroundColor: option.hex ?? "transparent" }}
+                          />
+                          <span>{option.name}</span>
                         </Button>
                       ))}
                     </div>
-                  </>
+                  </fieldset>
                 )}
+                {selectedSizes.length > 0 && (
+                  <fieldset className="mt-5">
+                    <legend className="mb-2 text-xs font-semibold">
+                      Tamanho{" "}
+                      <span className="font-normal text-muted-foreground">· escolha uma opção</span>
+                    </legend>
+                    <div className="flex flex-wrap gap-2">
+                      {displayedSizes.map((option) => {
+                        const available = selectedSizes.includes(option);
+                        return (
+                          <Button
+                            key={option}
+                            type="button"
+                            variant={size === option ? "default" : "outline"}
+                            aria-pressed={available && size === option}
+                            aria-label={available ? option : `${option} indisponível`}
+                            title={available ? option : `${option} indisponível`}
+                            disabled={!available}
+                            className="catalog-size-option h-10 w-10 p-0"
+                            onClick={() => setSize(option)}
+                          >
+                            {option}
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                )}
+                <div className="mt-5">
+                  <p className="mb-2 text-xs font-semibold">Quantidade</p>
+                  <div className="inline-flex items-center border">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Diminuir quantidade"
+                      disabled={quantity <= 1}
+                      onClick={() => setQuantity((current) => Math.max(1, current - 1))}
+                    >
+                      <Minus />
+                    </Button>
+                    <span className="w-9 text-center text-sm">{quantity}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Aumentar quantidade"
+                      onClick={() => setQuantity((current) => current + 1)}
+                    >
+                      <Plus />
+                    </Button>
+                  </div>
+                </div>
                 <Button
-                  disabled={!selectedIsAccessory && !size}
-                  className="mt-6 h-12"
+                  disabled={!canAdd}
+                  className="sticky bottom-0 z-10 mt-6 h-12 w-full"
                   onClick={() => {
                     setCart((prev) =>
                       addOrderLine(prev, {
                         id: selected.id,
                         name: selected.name,
-                        color: selectedIsAccessory ? undefined : selected.color,
-                        size: selectedIsAccessory ? undefined : size,
+                        ...(color ? { color } : {}),
+                        ...(size ? { size } : {}),
+                        quantity,
+                        ...(selected.price !== undefined ? { price: selected.price } : {}),
                       }),
                     );
                     setSelected(null);
-                    setBagOpen(true);
+                    setNotice(
+                      `${quantity} ${quantity === 1 ? "peça adicionada" : "peças adicionadas"} à sacola.`,
+                    );
                   }}
                 >
                   <ShoppingBag />
                   Adicionar à sacola
                 </Button>
                 <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
-                  Valores e disponibilidade confirmados pelo WhatsApp.
+                  Valores e disponibilidade serão confirmados pelo WhatsApp.
                 </p>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
+      {notice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-5 left-1/2 z-[60] -translate-x-1/2 rounded-md bg-foreground px-4 py-2 text-center text-xs text-background shadow-lg"
+        >
+          {notice}
+        </div>
+      )}
       <Sheet open={bagOpen} onOpenChange={setBagOpen}>
-        <SheetContent className="flex w-2/3 max-w-none flex-col overflow-x-hidden p-4 sm:p-6">
-          <SheetTitle className="font-display text-3xl font-normal">
+        <SheetContent
+          overlayClassName="backdrop-blur-[4px]"
+          className="catalog-bag-sheet flex max-w-none flex-col overflow-x-hidden p-3 sm:p-7"
+        >
+          <SheetTitle className="pr-5 font-display text-2xl font-normal sm:text-3xl">
             Sua sacola <span className="text-primary">({count})</span>
           </SheetTitle>
           <SheetDescription>Seus próximos looks, em um só lugar.</SheetDescription>
-          <div className="flex-1 overflow-y-auto py-6">
+          <div className="catalog-bag-list min-h-0 overflow-y-auto py-5">
             {cart.length === 0 ? (
-              <div className="py-16 text-center">
+              <div className="py-12 text-center">
                 <ShoppingBag className="mx-auto mb-4 text-primary" size={40} />
-                <p className="font-display text-2xl">Sua sacola está esperando você!</p>
+                <p className="font-display text-2xl">Sua sacola está vazia.</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Explore as peças e escolha seus próximos looks.
+                </p>
                 <Button variant="outline" className="mt-6" onClick={() => setBagOpen(false)}>
                   Explorar catálogo
                 </Button>
@@ -836,17 +1092,23 @@ export function Catalog() {
             ) : (
               cart.map((line) => (
                 <div
-                  key={`${line.id}-${line.size ?? ""}`}
-                  className="flex min-w-0 gap-4 border-b py-5"
+                  key={`${line.id}-${line.size ?? ""}-${line.color ?? ""}`}
+                  className="min-w-0 border-b py-4 first:pt-0"
                 >
-                  <div className="flex gap-4">
-                    <img
-                      src={catalog.products.find((p) => p.id === line.id)?.images[0]}
-                      alt={line.name}
-                      width={96}
-                      height={128}
-                      className="cart-item-image h-32 w-24 shrink-0 rounded-sm object-cover"
-                    />
+                  <div className="flex gap-3">
+                    {catalog.products.find((p) => p.id === line.id)?.images[0] ? (
+                      <img
+                        src={catalog.products.find((p) => p.id === line.id)?.images[0]}
+                        alt={line.name}
+                        width={80}
+                        height={100}
+                        className="cart-item-image h-28 w-20 shrink-0 rounded-sm object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-28 w-20 shrink-0 items-center justify-center bg-muted text-center text-[10px]">
+                        Sem foto
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="cart-item-header flex min-w-0 items-start justify-between gap-2">
                         <h3 className="cart-item-name min-w-0 text-sm">{line.name}</h3>
@@ -856,17 +1118,88 @@ export function Catalog() {
                           className="cart-remove-button shrink-0"
                           aria-label={`Remover ${line.name}`}
                           onClick={() =>
-                            setCart((prev) =>
-                              prev.filter((l) => !(l.id === line.id && l.size === line.size)),
-                            )
+                            setCart((prev) => prev.filter((l) => !sameOrderLine(l, line)))
                           }
                         >
                           <Trash2 />
                         </Button>
                       </div>
-                      {line.size && (
-                        <p className="mt-1 text-xs text-muted-foreground">Tamanho · {line.size}</p>
+                      {line.color && (
+                        <p className="mt-1 text-xs text-muted-foreground">Cor: {line.color}</p>
                       )}
+                      {line.size && (
+                        <p className="mt-1 text-xs text-muted-foreground">Tamanho: {line.size}</p>
+                      )}
+                      {(() => {
+                        const product = catalog.products.find((item) => item.id === line.id);
+                        if (!product)
+                          return catalog.source === "remote" ? (
+                            <p className="mt-2 text-xs text-destructive">
+                              Produto indisponível. Remova para continuar.
+                            </p>
+                          ) : null;
+                        return (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {(product.sizes?.length ?? 0) > 1 && (
+                              <select
+                                aria-label={`Alterar tamanho de ${line.name}`}
+                                value={line.size ?? ""}
+                                className="max-w-24 border bg-background p-1 text-xs"
+                                onChange={(event) =>
+                                  setCart((current) =>
+                                    replaceOrderLine(current, line, {
+                                      ...line,
+                                      size: event.target.value,
+                                    }),
+                                  )
+                                }
+                              >
+                                {line.size && !product.sizes?.includes(line.size) && (
+                                  <option value={line.size}>{line.size} (indisponível)</option>
+                                )}
+                                {product.sizes?.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {(product.colors?.length ?? 0) > 1 && (
+                              <select
+                                aria-label={`Alterar cor de ${line.name}`}
+                                value={line.color ?? ""}
+                                className="max-w-28 border bg-background p-1 text-xs"
+                                onChange={(event) =>
+                                  setCart((current) =>
+                                    replaceOrderLine(current, line, {
+                                      ...line,
+                                      color: event.target.value,
+                                    }),
+                                  )
+                                }
+                              >
+                                {line.color &&
+                                  !product.colors?.some((option) => option.name === line.color) && (
+                                    <option value={line.color}>{line.color} (indisponível)</option>
+                                  )}
+                                {product.colors?.map((option) => (
+                                  <option key={option.name} value={option.name}>
+                                    {option.name}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      {lineIsUnavailable(line) && (
+                        <p className="mt-2 text-xs text-destructive">
+                          Variação indisponível. Escolha outra opção ou remova a peça.
+                        </p>
+                      )}
+                      <p className="mt-2 text-xs font-semibold">
+                        {formatCatalogPrice(line.price) ?? "Valor sob consulta"}
+                      </p>
                       <div className="cart-item-actions mt-3 flex flex-wrap items-center gap-2">
                         <div className="flex items-center gap-2 border">
                           <Button
@@ -895,55 +1228,46 @@ export function Catalog() {
             )}
           </div>
           {cart.length > 0 && (
-            <div className="border-t pt-5">
-              <p className="mb-4 text-xs leading-5 text-muted-foreground">
-                {cartHasSizedItem
-                  ? "A Diva Ativa confirma os valores, tamanhos e a entrega com você pelo WhatsApp."
-                  : "A Diva Ativa confirma os valores, as cores disponíveis e a entrega com você pelo WhatsApp."}
+            <div>
+              <p className="text-xs text-muted-foreground">
+                {hasUnknownPrice ? "Subtotal parcial dos itens com preço" : "Subtotal estimado"}
+              </p>
+              <p className="mt-1 text-2xl font-semibold">
+                {orderSubtotal(cart) > 0 || !hasUnknownPrice
+                  ? formatCatalogPrice(orderSubtotal(cart))
+                  : "Valor sob consulta"}
+              </p>
+              {hasUnknownPrice && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Há peças com valor sob consulta.
+                </p>
+              )}
+              <p className="my-4 rounded-md bg-secondary p-3 text-xs leading-5 text-muted-foreground">
+                Valores e disponibilidade serão confirmados pelo WhatsApp.
               </p>
               <Button
-                asChild
-                className="h-12 min-w-0 w-full whitespace-normal px-2 text-xs leading-tight sm:text-sm"
+                className="min-h-12 w-full whitespace-normal px-2 py-2 text-center text-xs leading-tight sm:h-12 sm:text-sm"
+                disabled={cart.some(lineIsUnavailable)}
+                onClick={sendOrder}
               >
-                <a href={whatsappOrderUrl(cart)} target="_blank" rel="noreferrer">
-                  <span className="cart-checkout-label min-w-0 text-center">
-                    Concluir pedido no WhatsApp
-                  </span>
-                </a>
+                <MessageCircle /> Concluir pedido no WhatsApp
               </Button>
-              <div className="mt-4 flex items-center justify-center gap-2 text-[10px] text-muted-foreground">
-                <Check size={12} />
-                Atendimento direto com a loja
-              </div>
+              {copyFallback && (
+                <Button
+                  variant="outline"
+                  className="mt-2 w-full"
+                  onClick={() =>
+                    void navigator.clipboard
+                      .writeText(whatsappOrderText(cart))
+                      .then(() => setNotice("Mensagem copiada."))
+                      .catch(() => setNotice("Não foi possível copiar a mensagem."))
+                  }
+                >
+                  Copiar mensagem
+                </Button>
+              )}
             </div>
           )}
-        </SheetContent>
-      </Sheet>
-      <Sheet open={filterOpen} onOpenChange={setFilterOpen}>
-        <SheetContent>
-          <SheetTitle>Filtros</SheetTitle>
-          <SheetDescription>Encontre seu próximo look.</SheetDescription>
-          <p className="mb-3 mt-8 text-sm">Tamanho desejado</p>
-          <div className="flex flex-wrap gap-2">
-            {["Todos", "P", "M", "G", "GG"].map((s) => (
-              <Button
-                key={s}
-                variant={sizeFilter === s ? "default" : "outline"}
-                onClick={() => setSizeFilter(s)}
-              >
-                {s}
-              </Button>
-            ))}
-          </div>
-          <p className="mt-4 text-xs leading-5 text-muted-foreground">
-            Disponibilidade de tamanhos sob consulta.
-          </p>
-          <Button className="mt-8 w-full" onClick={() => setFilterOpen(false)}>
-            Aplicar
-          </Button>
-          <Button variant="link" className="mt-3 w-full" onClick={() => setSizeFilter("Todos")}>
-            Limpar filtros
-          </Button>
         </SheetContent>
       </Sheet>
     </>
