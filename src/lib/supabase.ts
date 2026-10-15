@@ -83,6 +83,24 @@ export type Database = {
         Update: Partial<{ product_id: string; category_id: string }>;
         Relationships: [];
       };
+      site_content: {
+        Row: {
+          id: string;
+          title: string;
+          highlight: string;
+          description: string;
+          button_label: string;
+        };
+        Insert: {
+          id: string;
+          title: string;
+          highlight: string;
+          description: string;
+          button_label: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["site_content"]["Insert"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;

@@ -49,6 +49,50 @@ function renderAdminShell() {
 }
 
 describe("Admin product controls", () => {
+  it("opens banner management from the admin sidebar", () => {
+    renderAdminShell();
+
+    fireEvent.click(screen.getByRole("button", { name: "Banner" }));
+
+    expect(screen.getByRole("heading", { name: "Banner da página principal" })).toBeInTheDocument();
+  });
+
+  it("saves the Esgotado checkbox as the product tag", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ProductForm product={product} categories={[category]} onSave={onSave} onCancel={vi.fn()} />,
+    );
+
+    const soldOut = screen.getByRole("checkbox", { name: "Esgotado" });
+    expect(soldOut).not.toBeChecked();
+    expect(screen.queryByRole("textbox", { name: "Tag" })).not.toBeInTheDocument();
+    fireEvent.click(soldOut);
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({ tag: "Esgotado" });
+  });
+
+  it("unchecking Esgotado clears a saved sold out tag", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ProductForm
+        product={{ ...product, tag: "Esgotado" }}
+        categories={[category]}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const soldOut = screen.getByRole("checkbox", { name: "Esgotado" });
+    expect(soldOut).toBeChecked();
+    fireEvent.click(soldOut);
+    fireEvent.click(screen.getByRole("button", { name: "Salvar alterações" }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({ tag: "" });
+  });
+
   it("opens the new product form as a dedicated admin view", () => {
     renderAdminShell();
 

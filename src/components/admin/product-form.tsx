@@ -13,6 +13,7 @@ import {
   appendCatalogPriceDigit,
   formatCatalogPriceInput,
   isAccessoryCategory,
+  isSoldOut,
   removeCatalogPriceDigit,
 } from "@/lib/catalog";
 import { CATALOG_SIZE_OPTIONS } from "@/lib/catalog-types";
@@ -84,7 +85,7 @@ export function ProductForm({
   const initialBrand = product?.brand ?? "Diva Ativa";
   const initialDescription = product?.description ?? "";
   const initialColorLabel = product?.color ?? "Cores disponíveis";
-  const initialTag = product?.tag ?? "";
+  const initialSoldOut = product ? isSoldOut(product) : false;
   const initialPriceCents = product?.price === undefined ? 0 : Math.round(product.price * 100);
   const [name, setName] = useState(initialName);
   const [categoryId, setCategoryId] = useState(initialCategoryId);
@@ -101,7 +102,7 @@ export function ProductForm({
   const [brand, setBrand] = useState(initialBrand);
   const [description, setDescription] = useState(initialDescription);
   const [colorLabel, setColorLabel] = useState(initialColorLabel);
-  const [tag, setTag] = useState(initialTag);
+  const [soldOut, setSoldOut] = useState(initialSoldOut);
   const [priceCents, setPriceCents] = useState(initialPriceCents);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [showNewCategory, setShowNewCategory] = useState(false);
@@ -132,7 +133,7 @@ export function ProductForm({
     brand !== initialBrand ||
     description !== initialDescription ||
     colorLabel !== initialColorLabel ||
-    tag !== initialTag ||
+    soldOut !== initialSoldOut ||
     priceCents !== initialPriceCents ||
     newCategoryName.trim().length > 0 ||
     imagesChanged;
@@ -218,7 +219,7 @@ export function ProductForm({
           brand,
           description,
           colorLabel,
-          tag,
+          tag: soldOut ? "Esgotado" : "",
           ...(priceCents > 0 ? { price: priceCents / 100 } : {}),
           active: true,
         },
@@ -299,13 +300,14 @@ export function ProductForm({
                 Marca
                 <Input value={brand} onChange={(event) => setBrand(event.target.value)} />
               </label>
-              <label className="grid gap-2 text-xs font-medium">
-                Tag
-                <Input
-                  placeholder="Ex.: NOVO"
-                  value={tag}
-                  onChange={(event) => setTag(event.target.value)}
+              <label className="flex min-h-11 cursor-pointer items-center gap-3 self-end text-base font-semibold">
+                <input
+                  type="checkbox"
+                  className="size-6 shrink-0 accent-primary"
+                  checked={soldOut}
+                  onChange={(event) => setSoldOut(event.target.checked)}
                 />
+                Esgotado
               </label>
             </div>
             <label className="grid gap-2 text-xs font-medium">

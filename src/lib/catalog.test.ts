@@ -7,12 +7,30 @@ import {
   formatCatalogPriceInput,
   parseCatalogPrice,
   isProductVariationAvailable,
+  isSoldOut,
   removeCatalogPriceDigit,
   replaceOrderLine,
   whatsappOrderText,
   whatsappOrderUrl,
 } from "./catalog";
 describe("Catalog orders", () => {
+  it("treats existing Esgotado tags as unavailable regardless of casing or spaces", () => {
+    const product = {
+      id: "set-1",
+      name: "Conjunto",
+      brand: "Diva Ativa",
+      category: "Conjuntos",
+      color: "",
+      images: [],
+      tag: " esgotado ",
+      description: "",
+      sizes: ["P"],
+    };
+    expect(isSoldOut(product)).toBe(true);
+    expect(isProductVariationAvailable(product, { size: "P" })).toBe(false);
+    expect(isProductVariationAvailable({ ...product, tag: "NOVO" }, { size: "P" })).toBe(true);
+  });
+
   it("allows only configured color and size pairs while preserving legacy colors", () => {
     const product = {
       id: "set-1",

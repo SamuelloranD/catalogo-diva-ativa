@@ -26,6 +26,7 @@ import {
   colorSupportsSize,
   formatCatalogPrice,
   isProductVariationAvailable,
+  isSoldOut,
   orderSubtotal,
   productAvailableSizes,
   replaceOrderLine,
@@ -38,6 +39,8 @@ import {
 } from "@/lib/catalog";
 import { CATALOG_SIZE_OPTIONS, type CatalogProduct } from "@/lib/catalog-types";
 import { getAdminSession } from "@/lib/admin-auth";
+import { getHeroBannerUrl } from "@/lib/hero-banner";
+import { DEFAULT_HERO_CONTENT, getHeroContent } from "@/lib/hero-content";
 import { supabase } from "@/lib/supabase";
 import { useCatalog } from "@/hooks/use-catalog";
 import blusaBabyLook1 from "@/assets/atletika/blusa-baby-look-com-bolsos/1.jpg";
@@ -476,6 +479,8 @@ function ProductImageButton({ product, loading, onSelect }: ProductImageButtonPr
 
 export function Catalog() {
   const [isAdmin, setIsAdmin] = useState(false);
+  const [heroImageUrl, setHeroImageUrl] = useState(macacaoMarta1);
+  const [heroContent, setHeroContent] = useState(DEFAULT_HERO_CONTENT);
   const [category, setCategory] = useState("Todas as peças");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("featured");
@@ -488,6 +493,34 @@ export function Catalog() {
   const [copyFallback, setCopyFallback] = useState(false);
   const [cart, setCart] = useState<OrderLine[]>([]);
   const [bagOpen, setBagOpen] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    void getHeroBannerUrl()
+      .then((url) => {
+        if (mounted && url) setHeroImageUrl(url);
+      })
+      .catch(() => {
+        // Keep the bundled image when the banner service is unavailable.
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void getHeroContent()
+      .then((content) => {
+        if (mounted) setHeroContent(content);
+      })
+      .catch(() => {
+        // Keep the bundled text when site settings are unavailable.
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -600,17 +633,17 @@ export function Catalog() {
       >
         <section className="catalog-hero relative isolate mb-5 overflow-hidden rounded-md bg-secondary">
           <img
-            src={macacaoMarta1}
+            src={heroImageUrl}
             alt="Moda fitness Diva Ativa"
             className="absolute inset-0 h-full w-full object-cover object-[60%_30%]"
           />
           <div className="catalog-hero-shade absolute inset-0" />
-          <div className="relative max-w-[58%] px-6 py-10 sm:px-10 sm:py-14">
+          <div className="relative max-w-[75%] px-6 py-10 sm:max-w-[58%] sm:px-10 sm:py-14">
             <h1 className="catalog-heading">
-              Vista sua <em>melhor versão.</em>
+              {heroContent.title} <em>{heroContent.highlight}</em>
             </h1>
             <p className="mt-4 max-w-xs text-xs leading-5 text-muted-foreground sm:text-sm">
-              Do treino ao seu dia a dia, encontre o look que acompanha você.
+              {heroContent.description}
             </p>
             <Button
               className="mt-5"
@@ -618,7 +651,7 @@ export function Catalog() {
                 document.getElementById("pecas")?.scrollIntoView({ behavior: "smooth" })
               }
             >
-              Explorar peças
+              {heroContent.buttonLabel}
             </Button>
           </div>
         </section>
@@ -719,7 +752,7 @@ export function Catalog() {
             const formattedPrice = formatCatalogPrice(p.price);
 
             return (
-              <article key={p.id} className="min-w-0">
+              <article key={p.id} className="flex h-full min-w-0 flex-col">
                 <div className="product-image relative overflow-hidden rounded-sm bg-muted">
                   <ProductImageButton
                     product={p}
@@ -727,12 +760,12 @@ export function Catalog() {
                     onSelect={() => select(p)}
                   />
                   {p.tag && (
-                    <span className="absolute left-3 top-3 bg-background/95 px-2.5 py-1.5 text-[8px] font-medium sm:text-[9px]">
-                      {p.tag}
+                    <span className="absolute left-3 top-3 bg-product-tag px-2.5 py-1.5 text-[8px] font-medium text-product-tag-foreground sm:text-[9px]">
+                      {isSoldOut(p) ? "Esgotado" : p.tag}
                     </span>
                   )}
                 </div>
-                <div className="pt-3">
+                <div className="flex flex-1 flex-col pt-3">
                   <p className="mb-1.5 text-[10px] text-muted-foreground">{p.category}</p>
                   <Button variant="productName" className="w-full px-0" onClick={() => select(p)}>
                     {p.name}
@@ -740,26 +773,28 @@ export function Catalog() {
                   <p className="mt-1.5 text-sm font-semibold text-foreground">
                     {formattedPrice ?? "Valor sob consulta"}
                   </p>
-                  {Boolean(p.colors?.length) && (
-                    <div
-                      className="mt-2 flex items-center gap-1.5"
-                      aria-label={`Cores: ${p.colors?.map((c) => c.name).join(", ")}`}
-                    >
-                      {p.colors?.slice(0, 4).map((c) => (
-                        <span
-                          key={c.name}
-                          title={c.name}
-                          className="h-4 w-4 rounded-full border"
-                          style={{ backgroundColor: c.hex ?? "transparent" }}
-                        />
-                      ))}
-                      {(p.colors?.length ?? 0) > 4 && (
-                        <span className="text-[10px] text-muted-foreground">
-                          +{(p.colors?.length ?? 0) - 4}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <div
+                    className="mt-auto flex min-h-6 items-center gap-1.5 pt-2"
+                    aria-label={
+                      p.colors?.length
+                        ? `Cores: ${p.colors.map((c) => c.name).join(", ")}`
+                        : undefined
+                    }
+                  >
+                    {p.colors?.slice(0, 4).map((c) => (
+                      <span
+                        key={c.name}
+                        title={c.name}
+                        className="h-4 w-4 rounded-full border"
+                        style={{ backgroundColor: c.hex ?? "transparent" }}
+                      />
+                    ))}
+                    {(p.colors?.length ?? 0) > 4 && (
+                      <span className="text-[10px] text-muted-foreground">
+                        +{(p.colors?.length ?? 0) - 4}
+                      </span>
+                    )}
+                  </div>
                   <Button className="mt-3 h-8 w-full text-xs" onClick={() => select(p)}>
                     Escolher opções
                   </Button>
@@ -1030,6 +1065,7 @@ export function Catalog() {
                   disabled={!canAdd}
                   className="sticky bottom-0 z-10 mt-6 h-12 w-full"
                   onClick={() => {
+                    if (!canAdd) return;
                     setCart((prev) =>
                       addOrderLine(prev, {
                         id: selected.id,
@@ -1049,6 +1085,11 @@ export function Catalog() {
                   <ShoppingBag />
                   Adicionar à sacola
                 </Button>
+                {isSoldOut(selected) && (
+                  <p className="mt-3 text-xs font-medium text-destructive">
+                    Esta peça está esgotada.
+                  </p>
+                )}
                 <p className="mt-3 text-[11px] leading-5 text-muted-foreground">
                   Valores e disponibilidade serão confirmados pelo WhatsApp.
                 </p>

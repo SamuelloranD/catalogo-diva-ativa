@@ -30,10 +30,15 @@ export function colorSupportsSize(product: CatalogProduct, color: string, size: 
   return Boolean(option && (!size || option.sizes === undefined || option.sizes.includes(size)));
 }
 
+export function isSoldOut(product: Pick<CatalogProduct, "tag">) {
+  return product.tag.trim().toLocaleLowerCase("pt-BR") === "esgotado";
+}
+
 export function isProductVariationAvailable(
   product: CatalogProduct,
   selection: Pick<OrderLine, "color" | "size">,
 ) {
+  if (isSoldOut(product)) return false;
   const sizes = productAvailableSizes(product);
   const colors = product.colors ?? [];
   if (sizes.length ? !selection.size || !sizes.includes(selection.size) : Boolean(selection.size)) {

@@ -1,6 +1,16 @@
 import type { User } from "@supabase/supabase-js";
 import { useState } from "react";
-import { ArrowLeft, Boxes, ExternalLink, LogOut, Menu, Package, Plus, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Boxes,
+  ExternalLink,
+  Image,
+  LogOut,
+  Menu,
+  Package,
+  Plus,
+  X,
+} from "lucide-react";
 
 import brandLogo from "@/assets/diva-ativa-logo.png";
 import { Button } from "@/components/ui/button";
@@ -15,6 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { CategoryManager } from "@/components/admin/category-manager";
+import { BannerManager } from "@/components/admin/banner-manager";
 import { ProductForm } from "@/components/admin/product-form";
 import type { ProductImageItem } from "@/components/admin/product-image-uploader";
 import { ProductTable } from "@/components/admin/product-table";
@@ -25,7 +36,7 @@ import type {
   ProductInput,
 } from "@/lib/catalog-types";
 
-type AdminView = "products" | "categories" | "editor";
+type AdminView = "products" | "categories" | "banner" | "editor";
 
 type AdminShellProps = {
   user: User;
@@ -132,6 +143,15 @@ export function AdminShell({
           >
             <Boxes /> Categorias
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            className={`${navButtonClass} ${view === "banner" ? "admin-nav-active" : ""}`}
+            aria-current={view === "banner" ? "page" : undefined}
+            onClick={() => navigate("banner")}
+          >
+            <Image /> Banner
+          </Button>
           <div className="my-3 border-t" />
           <Button asChild variant="ghost" className={navButtonClass}>
             <a href="/" target="_blank" rel="noopener noreferrer">
@@ -140,7 +160,7 @@ export function AdminShell({
           </Button>
         </nav>
         <div className="mt-auto border-t pt-4">
-          <p className="mb-2 truncate px-3 text-xs text-muted-foreground">{user.email}</p>
+          <p className="mb-2 truncate px-3 text-xs text-foreground/80">{user.email}</p>
           <Button type="button" variant="ghost" className={navButtonClass} onClick={onSignOut}>
             <LogOut /> Sair
           </Button>
@@ -223,6 +243,8 @@ export function AdminShell({
               onDelete={onDeleteCategory}
             />
           )}
+
+          {view === "banner" && <BannerManager />}
 
           {view === "editor" && (
             <section className="admin-panel rounded-xl border bg-background p-4 shadow-sm sm:p-7">
